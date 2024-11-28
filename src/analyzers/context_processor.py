@@ -1,6 +1,7 @@
-from datetime import datetime
-from typing import Dict, List
 from collections import Counter
+from datetime import datetime
+from typing import Dict, List, Union
+
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -137,35 +138,31 @@ class ContextProcessor:
             logger.error(f"Error calculating topic frequency: {str(e)}")
             return {}
 
-    def _extract_intent_context(self, history: List[Dict]) -> Dict:
-        """의도 컨텍스트 추출"""
-        try:
-            intents = []
-            for conv in reversed(history[-self.time_window['recent']:]):
-                if 'analysis' in conv:
-                    intent = conv['analysis'].get('intent')
-                    if intent:
-                        intents.append(intent)
-
-            return {
-                'recent_intents': intents,
-                'patterns': self._analyze_intent_patterns(intents)
-            }
-        except Exception as e:
-            logger.error(f"Error extracting intent context: {str(e)}")
-            return {}
-
-    def _analyze_intent_patterns(self, intents: List[str]) -> Dict:
+    def _analyze_intent_patterns(self, intents: List[Union[Dict, str]]) -> Dict:
         """의도 패턴 분석"""
         try:
+            # 딕셔너리 타입의 intent를 문자열로 변환
+            intent_keys = []
+            for intent in intents:
+                if isinstance(intent, dict):
+                    # 의도 타입을 키로 사용
+                    intent_type = intent.get('유형', '')
+                    if intent_type:
+                        intent_keys.append(intent_type)
+                else:
+                    # 문자열인 경우 그대로 사용
+                    intent_keys.append(str(intent))
+
+            # 변환된 문자열로 패턴 분석
             patterns = {
-                'frequency': dict(Counter(intents)),
-                'sequence': self._analyze_intent_sequence(intents)
+                'frequency': dict(Counter(intent_keys)),
+                'sequence': self._analyze_intent_sequence(intent_keys)
             }
             return patterns
+
         except Exception as e:
             logger.error(f"Error analyzing intent patterns: {str(e)}")
-            return {}
+            return {'frequency': {}, 'sequence': {}}
 
     def _analyze_intent_sequence(self, intents: List[str]) -> Dict[str, int]:
         """의도 시퀀스 분석"""
@@ -176,8 +173,34 @@ class ContextProcessor:
                     sequence = f"{intents[i]}->{intents[i+1]}"
                     sequences[sequence] = sequences.get(sequence, 0) + 1
             return sequences
+
         except Exception as e:
             logger.error(f"Error analyzing intent sequence: {str(e)}")
+            return {}
+
+    def _extract_intent_context(self, history: List[Dict]) -> Dict:
+        """의도 컨텍스트 추출"""
+        try:
+            intents = []
+            for conv in reversed(history[-self.time_window['recent']:]):
+                if 'analysis' in conv:
+                    intent = conv['analysis'].get('intent')
+                    if intent:
+                        # 딕셔너리 타입 체크 및 변환
+                        if isinstance(intent, dict):
+                            intent_type = intent.get('유형', '')
+                            if intent_type:
+                                intents.append(intent_type)
+                        else:
+                            intents.append(str(intent))
+
+            return {
+                'recent_intents': intents,
+                'patterns': self._analyze_intent_patterns(intents)
+            }
+
+        except Exception as e:
+            logger.error(f"Error extracting intent context: {str(e)}")
             return {}
 
     def _apply_context_weights(self, context: Dict) -> Dict:

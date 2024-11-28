@@ -13,18 +13,7 @@ class PromptGenerator:
             "enhanced": """
 You are analyzing a conversation in Korean. Review the following information carefully:
 
-Current User Query: {current_input}
-
-Examine the conversation history to understand context:
-{reference_conversations}
-
-Consider these contextual elements:
-{context_data}
-
-Understand the user's background:
-The user profile shows {user_profile}
-Their location context indicates {location_context}
-The temporal context suggests {temporal_context}
+{context_info}
 
 Your role is to act as a Korean conversation specialist. Generate responses that combine natural conversation flow with precise information delivery. Focus on providing contextually relevant and helpful information while maintaining a professional yet approachable tone.
 
@@ -119,20 +108,45 @@ Remember: Good questions lead to meaningful responses that help better understan
         """컨텍스트 기반 향상된 프롬프트 생성"""
         try:
             logger.debug(f"Creating enhanced prompt for input: {current.get('input', '')}")
-            user_profile = self._extract_user_profile(similar)
-            location_context = self._extract_location_context(similar)
-            temporal_context = self._extract_temporal_context(similar)
+
+            # 컨텍스트 정보 추출 및 구조화
+            context_info = self._build_context_information(current, similar)
+            logger.info(f"Generated context information: {context_info}")
 
             return self.templates["enhanced"].format(
                 current_input=current.get("input", ""),
-                reference_conversations=self._format_reference_conversations(similar),
-                context_data=self._format_context_data(similar),
-                user_profile=user_profile,
-                location_context=location_context,
-                temporal_context=temporal_context
+                context_info=context_info
             )
         except Exception as e:
             logger.error(f"Error creating enhanced prompt: {str(e)}")
+            return ""
+
+    def _build_context_information(self, current: Dict, similar: List[Dict]) -> str:
+        """컨텍스트 정보 구조화"""
+        try:
+            return f"""
+The user has just asked: {current.get("input", "")}
+
+Examine the conversation history to understand context:
+{self._format_reference_conversations(similar)}
+
+Consider these contextual elements:
+{self._format_context_data(similar)}
+
+Understand the user's background:
+Their interests include {self._extract_user_interests(similar)}
+Their typical behavior patterns show {self._extract_user_patterns(similar)}
+
+Let's look at their spatial context:
+They have recently visited {self._extract_location_context(similar)}
+I notice they frequently spend time in {self._extract_frequent_locations(similar)}
+
+Regarding temporal patterns:
+At this moment, {self._extract_current_temporal(similar)}
+Looking at their history, {self._extract_temporal_patterns(similar)}
+"""
+        except Exception as e:
+            logger.error(f"Error building context information: {str(e)}")
             return ""
 
     def create_new_query_prompt(self, current: Dict, similar: List[Dict]) -> str:
@@ -242,3 +256,95 @@ Remember: Good questions lead to meaningful responses that help better understan
         except Exception as e:
             logger.error(f"Error extracting temporal context: {str(e)}")
             return ""
+
+    def _extract_user_interests(self, conversations: List[Dict]) -> str:
+        """사용자 관심사 추출"""
+        try:
+            interests = set()
+            for conv in conversations:
+                if "main_topic" in conv.get("analysis", {}):
+                    interests.add(conv["analysis"]["main_topic"])
+            return ", ".join(interests) if interests else "Not enough data"
+        except Exception as e:
+            logger.error(f"Error extracting user interests: {str(e)}")
+            return "Error extracting interests"
+
+    def _extract_user_patterns(self, conversations: List[Dict]) -> str:
+        """사용자 패턴 추출"""
+        try:
+            patterns = []
+            for conv in conversations:
+                if "sub_topics" in conv.get("analysis", {}):
+                    if activities := conv["analysis"]["sub_topics"].get("activities"):
+                        patterns.extend(activities)
+            return ", ".join(set(patterns)) if patterns else "No clear patterns"
+        except Exception as e:
+            logger.error(f"Error extracting user patterns: {str(e)}")
+            return "Error extracting patterns"
+
+    def _extract_frequent_locations(self, conversations: List[Dict]) -> str:
+        """자주 방문하는 위치 추출"""
+        try:
+            locations = []
+            for conv in conversations:
+                if spatial := conv.get("analysis", {}).get("sub_topics", {}).get("spatial"):
+                    locations.extend(spatial)
+            return ", ".join(set(locations)) if locations else "No location data"
+        except Exception as e:
+            logger.error(f"Error extracting frequent locations: {str(e)}")
+            return "Error extracting locations"
+
+    def _extract_current_temporal(self, conversations: List[Dict]) -> str:
+        """현재 시간 컨텍스트 추출"""
+        try:
+            current_temporal = []
+            if conversations:
+                latest_conv = conversations[-1]
+                if 'analysis' in latest_conv:
+                    temporal_info = latest_conv['analysis'].get('sub_topics', {}).get('temporal', [])
+                    current_temporal.extend(
+                        info for info in temporal_info 
+                        if any(t in info for t in ['현재', '오늘', '지금'])
+                    )
+            return ', '.join(current_temporal) if current_temporal else '현재 시점'
+        except Exception as e:
+            logger.error(f"Error extracting current temporal: {str(e)}")
+            return '현재 시점'
+
+    def _extract_temporal_patterns(self, conversations: List[Dict]) -> str:
+        """시간 패턴 분석"""
+        try:
+            patterns = {
+                'time_of_day': [],
+                'day_of_week': [],
+                'period': []
+            }
+
+            for conv in conversations:
+                if 'analysis' not in conv:
+                    continue
+
+                temporal_info = conv['analysis'].get('sub_topics', {}).get('temporal', [])
+
+                for info in temporal_info:
+                    # 시간대 분석
+                    if any(t in info for t in ['아침', '오전', '오후', '저녁', '밤']):
+                        patterns['time_of_day'].append(info)
+                    # 요일 분석
+                    elif any(d in info for d in ['평일', '주말', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']):
+                        patterns['day_of_week'].append(info)
+                    # 기간 분석
+                    elif any(p in info for p in ['단기', '중기', '장기']):
+                        patterns['period'].append(info)
+
+            # 패턴 요약
+            summary = []
+            for category, items in patterns.items():
+                if items:
+                    summary.append(f"{category}: {', '.join(set(items))}")
+
+            return '; '.join(summary) if summary else '패턴 없음'
+
+        except Exception as e:
+            logger.error(f"Error extracting temporal patterns: {str(e)}")
+            return '패턴 분석 실패'
