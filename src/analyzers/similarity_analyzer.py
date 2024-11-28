@@ -80,7 +80,7 @@ class SimilarityAnalyzer:
                 hist_keywords = set(conv.get("analysis", {}).get("keywords", []))
                 if not hist_keywords:
                     continue
-                
+
                 similarity = len(current_keywords & hist_keywords) / len(current_keywords | hist_keywords)
                 logger.debug(f"Keyword similarity with '{conv.get('input', '')}': {similarity:.2f}")
 
@@ -109,10 +109,10 @@ class SimilarityAnalyzer:
             if not current_timestamp:
                 logger.warning("Current conversation has no timestamp")
                 return []
-                
+
             current_time = datetime.strptime(current_timestamp, "%Y-%m-%d %H:%M:%S")
             logger.debug(f"Current timestamp: {current_time}")
-            
+
             # 시간 범위 내 대화 필터링
             time_filtered = []
             for conv in history:
@@ -121,7 +121,7 @@ class SimilarityAnalyzer:
                 if not conv_timestamp:
                     logger.debug(f"Skipping conversation with no timestamp: {conv.get('input', '')}")
                     continue
-                    
+
                 try:
                     conv_time = datetime.strptime(conv_timestamp, "%Y-%m-%d %H:%M:%S")
                     time_diff = current_time - conv_time
@@ -133,12 +133,12 @@ class SimilarityAnalyzer:
                 except ValueError as e:
                     logger.warning(f"Invalid timestamp format in history: {conv_timestamp}")
                     continue
-            
+
             # 최근 순으로 정렬
             result = sorted(time_filtered, key=lambda x: x.get("timestamp", ""), reverse=True)[:max_results]
             logger.info(f"Time filtering selected {len(result)} conversations")
             return result
-            
+
         except Exception as e:
             logger.error(f"Error in time filtering: {str(e)}")
             return []
@@ -152,11 +152,11 @@ class SimilarityAnalyzer:
         try:
             logger.info(f"Calculating LLM similarities for {len(candidates)} candidates")
             similarities = {}
-            
+
             for idx, candidate in enumerate(candidates):
                 logger.debug(f"Processing candidate {idx + 1}/{len(candidates)}")
                 prompt = self._create_similarity_prompt(current["input"], candidate["input"])
-                
+
                 response = await self.client.chat.completions.create(
                     model="openai/gpt-4o-mini-2024-07-18",
                     messages=[
@@ -172,17 +172,17 @@ class SimilarityAnalyzer:
                     temperature=0.3,
                     max_tokens=100
                 )
-                
+
                 raw_score = response.choices[0].message.content
                 logger.debug(f"Raw similarity score from LLM: {raw_score}")
 
                 similarity_score = self._parse_similarity_score(raw_score)
                 logger.debug(f"Parsed similarity score: {similarity_score:.2f}")
                 similarities[idx] = similarity_score
-                
+
             logger.info(f"Completed similarity calculations for all candidates")
             return similarities
-            
+
         except Exception as e:
             logger.error(f"Error calculating LLM similarities: {str(e)}")
             return {}

@@ -6,7 +6,7 @@ logger = get_logger(__name__)
 
 class PromptGenerator:
     """프롬프트 생성 클래스"""
-    
+
     def __init__(self):
         """프롬프트 템플릿 초기화"""
         self.templates = {
@@ -155,7 +155,7 @@ Good: "12월 말에 방콕 여행 계획하신다고 하셨는데, 구체적인 
             user_profile = self._extract_user_profile(similar)
             location_context = self._extract_location_context(similar)
             temporal_context = self._extract_temporal_context(similar)
-            
+
             return self.templates["new_query"].format(
                 current_input=current.get("input", ""),
                 reference_conversations=self._format_reference_conversations(similar),
@@ -190,21 +190,21 @@ Good: "12월 말에 방콕 여행 계획하신다고 하셨는데, 구체적인 
                 analysis = conv.get("analysis", {})
                 if not analysis:
                     continue
-                    
+
                 context_entry = [f"- Topic: {analysis.get('main_topic', 'unknown')}"]
-                
+
                 if "keywords" in analysis:
                     context_entry.append(f"  Keywords: {', '.join(analysis['keywords'])}")
-                    
+
                 intent = analysis.get("intent", {})
                 if isinstance(intent, dict):
                     intent_str = intent.get("유형", str(intent))
                 else:
                     intent_str = str(intent)
                 context_entry.append(f"  Intent: {intent_str}")
-                
+
                 context_data.append("\n".join(context_entry))
-                
+
             return "\n".join(context_data)
         except Exception as e:
             logger.error(f"Error formatting context data: {str(e)}")
@@ -215,14 +215,14 @@ Good: "12월 말에 방콕 여행 계획하신다고 하셨는데, 구체적인 
         try:
             interests = []
             patterns = []
-            
+
             for conv in conversations:
                 analysis = conv.get("analysis", {})
                 if "main_topic" in analysis:
                     interests.append(analysis["main_topic"])
                 if "sub_topics" in analysis:
                     patterns.extend(analysis["sub_topics"].get("patterns", []))
-            
+
             return f"Interests: {', '.join(set(interests))}\nPatterns: {', '.join(set(patterns))}"
         except Exception as e:
             logger.error(f"Error extracting user profile: {str(e)}")
@@ -236,7 +236,7 @@ Good: "12월 말에 방콕 여행 계획하신다고 하셨는데, 구체적인 
                 analysis = conv.get("analysis", {})
                 if "sub_topics" in analysis and "spatial" in analysis["sub_topics"]:
                     locations.extend(analysis["sub_topics"]["spatial"])
-            
+
             return f"Recent Locations: {', '.join(set(locations))}"
         except Exception as e:
             logger.error(f"Error extracting location context: {str(e)}")
@@ -250,7 +250,7 @@ Good: "12월 말에 방콕 여행 계획하신다고 하셨는데, 구체적인 
                 analysis = conv.get("analysis", {})
                 if "sub_topics" in analysis and "temporal" in analysis["sub_topics"]:
                     temporal_info.extend(analysis["sub_topics"]["temporal"])
-            
+
             return f"Temporal References: {', '.join(set(temporal_info))}"
         except Exception as e:
             logger.error(f"Error extracting temporal context: {str(e)}")

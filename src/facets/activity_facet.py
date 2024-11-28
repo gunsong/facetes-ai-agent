@@ -88,7 +88,7 @@ class Activities:
             }
             logger.info(f"활동 기록 생성 완료: {json.dumps(record, ensure_ascii=False)}")
             return record
-            
+
         except Exception as e:
             logger.error(f"Error creating activity record: {str(e)}")
             return {}
@@ -107,7 +107,7 @@ class Activities:
                 # 첫 번째 공간 정보 반환
                 return spatial_info[0]
             return ""
-            
+
         except Exception as e:
             logger.error(f"Error extracting location: {str(e)}")
             return ""
@@ -122,7 +122,7 @@ class Activities:
         """
         try:
             return analysis_result.get("sub_topics", {}).get("companions", [])
-            
+
         except Exception as e:
             logger.error(f"Error extracting companions: {str(e)}")
             return []
@@ -132,7 +132,7 @@ class Activities:
         try:
             if not self.completed:
                 return False
-                
+
             # 현재 활동과 유사한 활동 찾기
             similar_activities = []
             for past_activity in self.completed[-10:]:  # 최근 10개 활동만 확인
@@ -142,10 +142,10 @@ class Activities:
                 )
                 if similarity_score > 0.7:  # 유사도 임계값
                     similar_activities.append(past_activity)
-                    
+
             # 유사한 활동이 2개 이상이면 반복 활동으로 간주
             return len(similar_activities) >= 2
-            
+
         except Exception as e:
             logger.error(f"Error checking recurring activity: {str(e)}")
             return False
@@ -159,14 +159,14 @@ class Activities:
         try:
             scores = []
             weights = []
-            
+
             # 1. 활동 유형 비교 (가중치: 0.4)
             if activity1.get("type") == activity2.get("type"):
                 scores.append(1.0)
             else:
                 scores.append(0.0)
             weights.append(0.4)
-            
+
             # 2. 키워드 비교 (가중치: 0.3)
             keywords1 = set(activity1.get("keywords", []))
             keywords2 = set(activity2.get("keywords", []))
@@ -174,14 +174,14 @@ class Activities:
                 common_keywords = keywords1 & keywords2
                 scores.append(len(common_keywords) / max(len(keywords1), len(keywords2)))
                 weights.append(0.3)
-                
+
             # 3. 장소 비교 (가중치: 0.2)
             if activity1.get("location") == activity2.get("location"):
                 scores.append(1.0)
             else:
                 scores.append(0.0)
             weights.append(0.2)
-            
+
             # 4. 동반자 비교 (가중치: 0.1)
             companions1 = set(activity1.get("companions", []))
             companions2 = set(activity2.get("companions", []))
@@ -189,14 +189,14 @@ class Activities:
                 common_companions = companions1 & companions2
                 scores.append(len(common_companions) / max(len(companions1), len(companions2)))
                 weights.append(0.1)
-                
+
             # 가중 평균 계산
             if not weights:
                 return 0.0
             weighted_sum = sum(score * weight for score, weight in zip(scores, weights))
             total_weight = sum(weights)
             return weighted_sum / total_weight
-            
+
         except Exception as e:
             logger.error(f"Error calculating activity similarity: {str(e)}")
             return 0.0
@@ -209,12 +209,12 @@ class Activities:
                 "예정", "계획", "할 예정", "하려고", 
                 "예약", "다음", "이번", "앞으로"
             ]
-            
+
             return any(
                 keyword in str(temporal_info) 
                 for keyword in future_keywords
             )
-            
+
         except Exception as e:
             logger.error(f"Error checking future activity: {str(e)}")
             return False
@@ -227,13 +227,13 @@ class Activities:
             if period:
                 # 해당 주기의 반복 활동 목록에 추가
                 self.recurring[period].append(activity_record)
-                
+
                 # 최대 크기 제한 (각 주기별 최근 10개만 유지)
                 if len(self.recurring[period]) > 10:
                     self.recurring[period].pop(0)
-                    
+
                 logger.debug(f"반복 활동 업데이트 완료: {period}")
-                
+
         except Exception as e:
             logger.error(f"Error updating recurring activities: {str(e)}")
 
@@ -241,7 +241,7 @@ class Activities:
         """활동의 주기 결정"""
         try:
             temporal_info = activity_record.get("details", {}).get("temporal", [])
-            
+
             # 주기 키워드 매핑
             period_keywords = {
                 "daily": ["매일", "daily", "하루", "일간"],
@@ -249,15 +249,15 @@ class Activities:
                 "monthly": ["매월", "monthly", "월간"],
                 "seasonal": ["계절", "seasonal", "분기", "철"]
             }
-            
+
             # 키워드 매칭
             for period, keywords in period_keywords.items():
                 if any(keyword in str(temporal_info) for keyword in keywords):
                     logger.debug(f"활동 주기 결정: {period}")
                     return period
-                    
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error determining activity period: {str(e)}")
             return None
@@ -292,7 +292,7 @@ class Activities:
             activity_type = activity_record.get("type", "unknown")
             self.patterns["frequency"][activity_type] = \
                 self.patterns["frequency"].get(activity_type, 0) + 1
-            
+
             # 활동 조합 패턴 업데이트
             if self.completed:
                 last_activity = self.completed[-1]
@@ -300,16 +300,16 @@ class Activities:
                 combination = f"{last_type}->{activity_type}"
                 self.patterns["combinations"][combination] = \
                     self.patterns["combinations"].get(combination, 0) + 1
-            
+
             # 활동 시퀀스 패턴 업데이트
             if len(self.completed) >= 2:
                 last_two = [a.get("type", "unknown") for a in self.completed[-2:]]
                 sequence = f"{last_two[0]}->{last_two[1]}->{activity_type}"
                 self.patterns["sequences"][sequence] = \
                     self.patterns["sequences"].get(sequence, 0) + 1
-                    
+
             logger.debug(f"활동 패턴 업데이트 완료: {activity_type}")
-            
+
         except Exception as e:
             logger.error(f"Error updating activity patterns: {str(e)}")
 
@@ -322,23 +322,23 @@ class Activities:
                 if category not in self.history["by_category"]:
                     self.history["by_category"][category] = []
                 self.history["by_category"][category].append(activity_record)
-                
+
             # 위치별 이력
             location = activity_record.get("location", "")
             if location:
                 if location not in self.history["by_location"]:
                     self.history["by_location"][location] = []
                 self.history["by_location"][location].append(activity_record)
-                
+
             # 동반자별 이력
             companions = activity_record.get("companions", [])
             for companion in companions:
                 if companion not in self.history["by_companion"]:
                     self.history["by_companion"][companion] = []
                 self.history["by_companion"][companion].append(activity_record)
-                
+
             logger.debug("활동 이력 업데이트 완료")
-            
+
         except Exception as e:
             logger.error(f"Error updating activity history: {str(e)}")
 
@@ -350,9 +350,9 @@ class Activities:
                 sequence = f"{last_two[0]}->{last_two[1]}->{activity_record.get('type', 'unknown')}"
                 self.patterns["sequences"][sequence] = \
                     self.patterns["sequences"].get(sequence, 0) + 1
-                    
+
             logger.debug(f"활동 시퀀스 업데이트 완료")
-            
+
         except Exception as e:
             logger.error(f"Error updating activity sequence: {str(e)}")
 

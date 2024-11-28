@@ -7,7 +7,7 @@ logger = get_logger(__name__)
 
 class ContextProcessor:
     """컨텍스트 처리 클래스"""
-    
+
     def __init__(self):
         self.context_weights = {
             'location': 0.4,
@@ -19,7 +19,7 @@ class ContextProcessor:
             'recent': 3,  # 최근 3개 대화
             'relevant': 5  # 관련성 있는 최대 5개 대화
         }
-        
+
     def process_context(self, current_query: str, history: List[Dict]) -> Dict:
         """컨텍스트 처리 및 분석"""
         try:
@@ -31,12 +31,12 @@ class ContextProcessor:
                 'history': history[-self.time_window['recent']:],
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
-            
+
             weighted_context = self._apply_context_weights(context)
             logger.info(f"Processed context for query: {current_query}")
-            
+
             return weighted_context
-            
+
         except Exception as e:
             logger.error(f"Error processing context: {str(e)}")
             return {}
@@ -49,7 +49,7 @@ class ContextProcessor:
                 if 'analysis' in conv:
                     spatial_info = conv['analysis'].get('sub_topics', {}).get('spatial', [])
                     locations.extend(spatial_info)
-            
+
             return {
                 'recent_locations': locations,
                 'frequency': self._calculate_location_frequency(locations)
@@ -74,7 +74,7 @@ class ContextProcessor:
                 if 'analysis' in conv:
                     time_info = conv['analysis'].get('sub_topics', {}).get('temporal', [])
                     temporal_info.extend(time_info)
-            
+
             return {
                 'recent_temporal': temporal_info,
                 'patterns': self._analyze_temporal_patterns(temporal_info)
@@ -91,22 +91,22 @@ class ContextProcessor:
                 'day_of_week': {},
                 'period': {}
             }
-            
+
             for info in temporal_info:
                 # 시간대 분석
                 if any(time in info for time in ['아침', '오전', '오후', '저녁', '밤']):
                     patterns['time_of_day'][info] = patterns['time_of_day'].get(info, 0) + 1
-                
+
                 # 요일 분석
                 if any(day in info for day in ['평일', '주말', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']):
                     patterns['day_of_week'][info] = patterns['day_of_week'].get(info, 0) + 1
-                
+
                 # 기간 분석
                 if any(period in info for period in ['단기', '중기', '장기']):
                     patterns['period'][info] = patterns['period'].get(info, 0) + 1
-            
+
             return patterns
-            
+
         except Exception as e:
             logger.error(f"Error analyzing temporal patterns: {str(e)}")
             return {}
@@ -120,7 +120,7 @@ class ContextProcessor:
                     topic = conv['analysis'].get('main_topic')
                     if topic:
                         topics.append(topic)
-            
+
             return {
                 'recent_topics': topics,
                 'frequency': self._calculate_topic_frequency(topics)
@@ -146,7 +146,7 @@ class ContextProcessor:
                     intent = conv['analysis'].get('intent')
                     if intent:
                         intents.append(intent)
-            
+
             return {
                 'recent_intents': intents,
                 'patterns': self._analyze_intent_patterns(intents)
@@ -201,16 +201,16 @@ class ContextProcessor:
         try:
             if not context_data:
                 return 0.0
-            
+
             # 기본 신뢰도 점수
             base_confidence = 0.7
-            
+
             # 데이터 완성도에 따른 보정
             completeness = len(context_data) / 4  # 예상되는 최대 키 수로 나눔
-            
+
             # 최신성에 따른 보정
             recency_factor = 0.9  # 최신 데이터 가중치
-            
+
             return min(1.0, base_confidence * completeness * recency_factor)
         except Exception as e:
             logger.error(f"Error calculating confidence: {str(e)}")

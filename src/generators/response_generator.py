@@ -6,7 +6,7 @@ logger = get_logger(__name__)
 
 class ResponseGenerator:
     """범용 AI Agent를 위한 응답 생성 클래스"""
-    
+
     def __init__(self):
         self.required_info = {
             'recommendation': ['target', 'preference'],
@@ -15,7 +15,7 @@ class ResponseGenerator:
             'analysis': ['target', 'criteria'],
             'general': ['intent']
         }
-        
+
         self.domain_patterns = {
             'tech': ['개발', '프로그래밍', 'AI', '기술', '코드'],
             'business': ['비즈니스', '마케팅', '전략', '기획'],
@@ -32,18 +32,18 @@ class ResponseGenerator:
             intent_info = self._analyze_intent(analysis_result.get('intent', {}))
 
             logger.info(f"Domain: {domain}, Query type: {query_type}, Intent: {intent_info}")
-            
+
             # 컨텍스트 연관성 확인
             context_relation = self._analyze_context_relation(analysis_result, context)
-            
+
             # 도메인별 특화 처리
             if domain_handler := self._get_domain_handler(domain):
                 # 비동기 함수 호출 제거
                 return domain_handler(query_type, analysis_result, context, context_relation)
-            
+
             # 기본 응답 생성 로직
             missing_info = self._check_required_info(query_type, context, analysis_result)
-            
+
             if missing_info:
                 return self._generate_clarification_request(
                     query_type,
@@ -52,7 +52,7 @@ class ResponseGenerator:
                     analysis_result,
                     context_relation
                 )
-            
+
             if context_relation.get('related_activity'):
                 return self._generate_activity_related_response(
                     query_type,
@@ -60,13 +60,13 @@ class ResponseGenerator:
                     context,
                     context_relation
                 )
-            
+
             return self._generate_standard_response(
                 query_type,
                 analysis_result,
                 context
             )
-            
+
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             return "응답 생성 중 오류가 발생했습니다."
@@ -98,7 +98,7 @@ class ResponseGenerator:
             recent_topics = context.get('topic', {}).get('data', {}).get('recent_topics', [])
             recent_locations = context.get('location', {}).get('data', {}).get('recent_locations', [])
             recent_activities = context.get('topic', {}).get('data', {}).get('activities', [])
-            
+
             # 활동 연관성 확인
             related_activity = None
             if '여가활동' in recent_topics or any('여가' in act for act in recent_activities):
@@ -107,7 +107,7 @@ class ResponseGenerator:
                     'location': self._extract_location(recent_locations),
                     'details': str(context.get('topic', {}).get('data', {}).get('details', ''))  # 문자열로 변환
                 }
-            
+
             return {
                 'related_activity': related_activity,
                 'shared_location': bool(set(current.get('sub_topics', {}).get('spatial', [])) & set(recent_locations)),
@@ -122,14 +122,14 @@ class ResponseGenerator:
         try:
             if query_type not in self.required_info:
                 return []
-                
+
             missing = []
             for info in self.required_info[query_type]:
                 if not self._has_required_info(info, context, analysis_result):
                     missing.append(info)
-                    
+
             return missing
-            
+
         except Exception as e:
             logger.error(f"Error checking required info: {str(e)}")
             return []
@@ -173,7 +173,7 @@ class ResponseGenerator:
                     if spatial_info:
                         logger.info(f"spatial_info: {spatial_info}")
                         return f"{spatial_info[0]} 근처에서 찾아보시는 건가요? 아니면 다른 지역을 알려주시겠어요?"
-                    
+
                     # 컨텍스트에서 최근 위치 확인
                     recent_locations = context.get('location', {}).get('data', {}).get('recent_locations', [])
                     if recent_locations:
@@ -184,16 +184,16 @@ class ResponseGenerator:
                             logger.info(f"activity: {activity}")
                             return f"{recent_locations[0]} 근처에서 {activity['type']}과 관련하여 찾아보시는 건가요?"
                         return f"{recent_locations[0]} 근처에서 찾아보시는 건가요?"
-                        
+
                     return "어느 지역에서 찾아보시겠어요?"
-                    
+
             elif query_type == 'information':
                 if 'time' in missing_info:
                     temporal_info = analysis_result.get('sub_topics', {}).get('temporal', [])
                     if temporal_info:
                         logger.info(f"temporal_info: {temporal_info}")
                         return f"{temporal_info[0]}를 기준으로 알려드릴까요?"
-                        
+
                     if context_relation.get('related_activity'):
                         activity = context_relation['related_activity']
                         logger.info(f"activity: {activity}")
@@ -201,11 +201,11 @@ class ResponseGenerator:
                         if temporal:
                             logger.info(f"temporal: {temporal}")
                             return f"{temporal[0]} 기준으로 알려드릴까요?"
-                            
+
                     return "언제를 기준으로 알려드릴까요?"
-                    
+
             return "더 자세한 정보를 알려주시겠어요?"
-            
+
         except Exception as e:
             logger.error(f"Error generating clarification request: {str(e)}")
             return "죄송합니다. 질문을 더 자세히 해주시겠어요?"
@@ -215,7 +215,7 @@ class ResponseGenerator:
         try:
             target = analysis.get('sub_topics', {}).get('target', [''])[0]
             preferences = analysis.get('sub_topics', {}).get('preferences', [])
-            
+
             if preferences:
                 return f"{target}와 관련하여 {', '.join(preferences)} 특성을 고려한 추천을 제공하겠습니다."
             return f"{target}에 대한 비즈니스 추천을 제공하겠습니다."
@@ -228,7 +228,7 @@ class ResponseGenerator:
         try:
             target = analysis.get('sub_topics', {}).get('target', [''])[0]
             preferences = analysis.get('sub_topics', {}).get('preferences', [])
-            
+
             if preferences:
                 return f"{target} 연구와 관련하여 {', '.join(preferences)} 방향의 추천을 제공하겠습니다."
             return f"{target}에 대한 연구 방향을 추천하겠습니다."
@@ -241,7 +241,7 @@ class ResponseGenerator:
         try:
             target = analysis.get('sub_topics', {}).get('target', [''])[0]
             preferences = analysis.get('sub_topics', {}).get('preferences', [])
-            
+
             if preferences:
                 return f"{target} 기술과 관련하여 {', '.join(preferences)} 특성을 고려한 추천을 제공하겠습니다."
             return f"{target}에 대한 기술 추천을 제공하겠습니다."
@@ -254,16 +254,16 @@ class ResponseGenerator:
         try:
             keywords = analysis_result.get('keywords', [])
             main_topic = analysis_result.get('main_topic', '')
-            
+
             # 도메인 패턴 매칭
             for domain, patterns in self.domain_patterns.items():
                 if any(pattern in query for pattern in patterns) or \
                 any(pattern in main_topic for pattern in patterns) or \
                 any(any(pattern in keyword for pattern in patterns) for keyword in keywords):
                     return domain
-            
+
             return 'general'
-            
+
         except Exception as e:
             logger.error(f"Error analyzing domain: {str(e)}")
             return 'general'
@@ -288,7 +288,7 @@ class ResponseGenerator:
                 return 'information'
             if '추천' in keywords:
                 return 'recommendation'
-                
+
             # 분석 결과의 의도를 확인
             intent = analysis_result.get('intent', '')
             if intent:
@@ -298,20 +298,20 @@ class ResponseGenerator:
                     return 'information'
                 elif '위치' in intent:
                     return 'location'
-            
+
             # 쿼리 패턴 분석
             query_patterns = {
                 'recommendation': ['추천', '알려줘', '좋은곳'],
                 'information': ['어때', '알려줘', '어떻게'],
                 'location': ['어디', '가는길', '위치']
             }
-            
+
             for query_type, patterns in query_patterns.items():
                 if any(pattern in query for pattern in patterns):
                     return query_type
-                    
+
             return 'general'
-            
+
         except Exception as e:
             logger.error(f"Error analyzing query type: {str(e)}")
             return 'general'
@@ -340,24 +340,24 @@ class ResponseGenerator:
         try:
             # 위치 정보 추출
             location = self._extract_specific_location(analysis, context)
-            
+
             # 활동 정보 추출
             activity = relation.get('related_activity', {})
             activity_type = activity.get('type', '')
             activity_details = activity.get('details', {})
-            
+
             if query_type == 'information':
                 # 날씨 관련 질의인 경우
                 if '날씨' in analysis.get('keywords', []):
                     temporal_info = analysis.get('sub_topics', {}).get('temporal', [])
                     time_str = f"{temporal_info[0]} " if temporal_info else ""
-                    
+
                     return (
                         f"{location} 지역의 {time_str}날씨를 알려드리겠습니다. "
                         f"특히 {activity_type} 계획과 관련하여 "
                         f"활동 가능 여부도 함께 안내해드리겠습니다."
                     )
-                    
+
             elif query_type == 'recommendation':
                 # 추천 관련 질의인 경우
                 if activity_type:
@@ -365,9 +365,9 @@ class ResponseGenerator:
                         f"{location} 근처에서 {activity_type}과 관련된 "
                         f"추천 정보를 알려드리겠습니다."
                     )
-                    
+
             return self._generate_standard_response(query_type, analysis, context)
-            
+
         except Exception as e:
             logger.error(f"Error generating activity related response: {str(e)}")
             return self._generate_standard_response(query_type, analysis, context)
@@ -384,24 +384,24 @@ class ResponseGenerator:
                 spatial_info = analysis.get('sub_topics', {}).get('spatial', [])
                 location = spatial_info[0] if spatial_info else \
                         context.get('location', {}).get('data', {}).get('recent_locations', [''])[0]
-                
+
                 activities = analysis.get('sub_topics', {}).get('activities', [])
                 activity_str = f"{', '.join(activities)} 관련한" if activities else ""
-                
+
                 return f"{location}의 {activity_str} 추천 정보를 알려드리겠습니다."
-                
+
             elif query_type == 'information':
                 main_topic = analysis.get('main_topic', '')
                 temporal_info = analysis.get('sub_topics', {}).get('temporal', [])
                 spatial_info = analysis.get('sub_topics', {}).get('spatial', [])
-                
+
                 location_str = f"{spatial_info[0]} 지역의 " if spatial_info else ""
                 temporal_str = f"{temporal_info[0]} 기준" if temporal_info else ""
-                
+
                 return f"{location_str}{temporal_str} {main_topic} 정보를 알려드리겠습니다."
-                
+
             return "알겠습니다. 도움이 필요하신가요?"
-            
+
         except Exception as e:
             logger.error(f"Error generating standard response: {str(e)}")
             return "죄송합니다. 다시 한 번 말씀해 주시겠어요?"
@@ -466,7 +466,7 @@ class ResponseGenerator:
             target = analysis.get('sub_topics', {}).get('target', [''])[0]
             criteria = analysis.get('sub_topics', {}).get('criteria', [])
             tech_stack = analysis.get('sub_topics', {}).get('tech_stack', [])
-            
+
             response = f"{target}에 대한 기술 분석을 진행하겠습니다.\n"
             if criteria:
                 response += f"분석 기준: {', '.join(criteria)}\n"
@@ -494,7 +494,7 @@ class ResponseGenerator:
             target = analysis.get('sub_topics', {}).get('target', [''])[0]
             criteria = analysis.get('sub_topics', {}).get('criteria', [])
             methodology = analysis.get('sub_topics', {}).get('methodology', [])
-            
+
             response = f"{target}에 대한 연구 분석을 진행하겠습니다.\n"
             if criteria:
                 response += f"분석 기준: {', '.join(criteria)}\n"
@@ -513,19 +513,19 @@ class ResponseGenerator:
             for loc in spatial_info:
                 if '국내(' in loc:
                     return loc.split('국내(')[1].rstrip(')')
-                    
+
             # 컨텍스트에서 구체적 위치 확인
             recent_locations = context.get('location', {}).get('data', {}).get('recent_locations', [])
             for loc in recent_locations:
                 if '국내(' in loc:
                     return loc.split('국내(')[1].rstrip(')')
-                    
+
             # 일반적 위치 정보 반환
             return next(
                 (loc for loc in spatial_info),
                 next((loc for loc in recent_locations), '서울')
             )
-            
+
         except Exception as e:
             logger.error(f"Error extracting specific location: {str(e)}")
             return '서울'

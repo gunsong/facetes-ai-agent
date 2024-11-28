@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 class TextParser:
     """LLM 응답을 구조화된 형식으로 파싱하는 클래스"""
-    
+
     def __init__(self):
         """LLM 응답을 구조화된 형식으로 파싱하는 클래스"""
         # 주요 카테고리 및 관련 키워드 정의
@@ -71,7 +71,7 @@ class TextParser:
                 "창업", "부업", "아르바이트"
             ]
         }
-        
+
         # 키워드별 서브카테고리 매핑
         self.keyword_subcategories = {
             # 일상생활 관련
@@ -84,7 +84,7 @@ class TextParser:
             "집정리": "일상생활",
             "출퇴근": "일상생활",
             "등하교": "일상생활",
-            
+
             # 여가활동 관련
             "영화감상": "여가활동",
             "공연관람": "여가활동",
@@ -94,14 +94,14 @@ class TextParser:
             "등산": "여가활동",
             "캠핑": "여가활동",
             "낚시": "여가활동",
-            
+
             # 사회활동 관련
             "봉사활동": "사회활동",
             "종교활동": "사회활동",
             "동호회": "사회활동",
             "친목회": "사회활동",
             "동창회": "사회활동",
-            
+
             # 업무/학업 관련
             "회의": "업무/학업",
             "프로젝트": "업무/학업",
@@ -109,7 +109,7 @@ class TextParser:
             "수업": "업무/학업",
             "과제": "업무/학업",
             "시험": "업무/학업",
-            
+
             # 건강/복지 관련
             "병원진료": "건강/복지",
             "치료": "건강/복지",
@@ -117,7 +117,7 @@ class TextParser:
             "상담": "건강/복지",
             "운동": "건강/복지",
             "요가": "건강/복지",
-            
+
             # 관계 관련
             "가족모임": "관계",
             "친구만남": "관계",
@@ -125,7 +125,7 @@ class TextParser:
             "소개팅": "관계",
             "결혼식": "관계",
             "장례식": "관계",
-            
+
             # 경제활동 관련
             "쇼핑": "경제활동",
             "투자": "경제활동",
@@ -141,18 +141,18 @@ class TextParser:
         #     # JSON 형식 검증 및 파싱
         #     if not response or not response.strip():
         #         return self._generate_default_analysis()
-                
+
         #     # JSON 블록 추출
         #     json_block = self._extract_json_block(response)
         #     if not json_block:
         #         return self._generate_default_analysis()
-                
+
         #     # JSON 파싱
         #     parsed_data = json.loads(json_block)
-            
+
         #     # 필수 필드 검증 및 보완
         #     return self._validate_and_complete_analysis(parsed_data)
-            
+
         # except json.JSONDecodeError as e:
         #     logger.error(f"JSON parsing error: {str(e)}")
         #     return self._generate_default_analysis()
@@ -165,10 +165,10 @@ class TextParser:
             json_end = response.rfind('}') + 1
             if json_start == -1 or json_end == 0:
                 return self._generate_default_analysis()
-            
+
             json_str = response[json_start:json_end]
             data = json.loads(json_str)
-            
+
             # 키 매핑 수정
             return {
                 "main_topic": data.get("메인 주제", "unknown"),
@@ -204,11 +204,11 @@ class TextParser:
     def _validate_and_complete_analysis(self, data: Dict) -> Dict:
         """분석 결과 검증 및 보완"""
         default = self._generate_default_analysis()
-        
+
         # 메인 토픽 검증
         if not data.get("main_topic"):
             data["main_topic"] = self._infer_main_topic(data)
-            
+
         # 서브 토픽 검증
         if "sub_topics" not in data or not isinstance(data["sub_topics"], dict):
             data["sub_topics"] = default["sub_topics"]
@@ -216,23 +216,23 @@ class TextParser:
             for key in default["sub_topics"]:
                 if key not in data["sub_topics"]:
                     data["sub_topics"][key] = []
-                    
+
         # 키워드 검증
         if "keywords" not in data or not isinstance(data["keywords"], list):
             data["keywords"] = []
-            
+
         # 감정 분석 검증
         if "sentiment" not in data or not isinstance(data["sentiment"], dict):
             data["sentiment"] = default["sentiment"]
-            
+
         # 신뢰도 점수 검증
         if "reliability_score" not in data:
             data["reliability_score"] = self._calculate_reliability_score(data)
-            
+
         # 의도 분석 검증
         if "intent" not in data or data["intent"] == "unknown":
             data["intent"] = self._infer_intent(data)
-            
+
         return data
 
     def _infer_intent(self, text: str) -> str:
@@ -293,7 +293,7 @@ class TextParser:
             match = re.search(r'\[(.*?)\]', text)
             if match:
                 topic = match.group(1).strip().lower()
-                
+
                 # 1. 직접 카테고리 매칭
                 if topic in self.topic_categories:
                     logger.info(f"직접 카테고리 매칭 성공: {topic}")
@@ -331,16 +331,16 @@ class TextParser:
         # 1. 최소 길이 확인
         if len(keyword) < 2:
             return False
-            
+
         # 2. 불용어 체크
         stop_words = ["및", "또는", "그리고", "하는", "있는", "등"]
         if keyword in stop_words:
             return False
-            
+
         # 3. 특수문자나 숫자로만 구성된 경우 제외
         if re.match(r'^[\W\d]+$', keyword):
             return False
-            
+
         return True
 
     def _parse_sub_topics(self, text: str) -> Dict[str, List[str]]:
@@ -453,7 +453,7 @@ class TextParser:
         """날짜 형식 정규화"""
         try:
             current_date = datetime.now()
-            
+
             # 상대적 날짜 표현 처리
             if "이번 주" in date_text:
                 return current_date.strftime("%Y-%m-%d")
@@ -463,13 +463,13 @@ class TextParser:
                 return (current_date + timedelta(days=1)).strftime("%Y-%m-%d")
             elif "모레" in date_text:
                 return (current_date + timedelta(days=2)).strftime("%Y-%m-%d")
-            
+
             # YYYY-MM-DD 형식 확인
             if re.match(r'\d{4}-\d{2}-\d{2}', date_text):
                 return date_text
-            
+
             return current_date.strftime("%Y-%m-%d")
-            
+
         except Exception as e:
             logger.error(f"Error normalizing date: {str(e)}")
             return datetime.now().strftime("%Y-%m-%d")
@@ -508,35 +508,35 @@ class TextParser:
             "시사/정보": ["뉴스", "정보", "시사", "사회", "이슈"],
             "사회활동": ["모임", "봉사", "단체", "활동", "참여"]
         }
-        
+
         # 키워드 매칭 점수 계산
         topic_scores = {topic: 0 for topic in topic_keywords}
         for keyword in keywords:
             for topic, kw_list in topic_keywords.items():
                 if any(kw in keyword for kw in kw_list):
                     topic_scores[topic] += 1
-                    
+
         # 최고 점수 토픽 반환
         if topic_scores:
             max_score = max(topic_scores.values())
             if max_score > 0:
                 return max(topic_scores.items(), key=lambda x: x[1])[0]
-                
+
         return "기타"  # 기본값
 
     def _calculate_reliability_score(self, data: Dict) -> int:
         """신뢰도 점수 계산"""
         score = 0
-        
+
         # 구체성 점수
         if data["sub_topics"]["temporal"]: score += 20
         if data["sub_topics"]["spatial"]: score += 20
         if data["sub_topics"]["companions"]: score += 20
-        
+
         # 명확성 점수
         if data["sub_topics"]["purpose"]: score += 20
         if data["keywords"]: score += 20
-        
+
         return score
 
 def test_parse_temporal():
@@ -569,15 +569,15 @@ if __name__ == "__main__":
         print("\n=== 시간 정보 파싱 테스트 ===")
         test_parse_temporal()
         print("✓ 시간 정보 파싱 테스트 성공")
-        
+
         print("\n=== 동반자 정보 파싱 테스트 ===")
         test_parse_companions()
         print("✓ 동반자 정보 파싱 테스트 성공")
-        
+
         print("\n=== 키워드 추출 테스트 ===")
         test_extract_keywords()
         print("✓ 키워드 추출 테스트 성공")
-        
+
         print("\n모든 테스트가 성공적으로 완료되었습니다!")
     except AssertionError as e:
         print(f"\n❌ 테스트 실패: {str(e)}")

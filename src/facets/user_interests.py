@@ -166,11 +166,11 @@ class UserInterests:
     def get_top_interests(self, category: str, limit: int = 5) -> List[tuple]:
         """
         특정 카테고리의 상위 관심사 반환
-        
+
         Args:
             category: 관심사 카테고리 (topics, keywords, 등)
             limit: 반환할 항목 수
-            
+
         Returns:
             상위 관심사 목록 (항목, 점수)
         """
@@ -236,24 +236,24 @@ class UserInterests:
         try:
             if not self.last_update:
                 return
-                
+
             cutoff_date = datetime.now() - timedelta(days=days)
-            
+
             # 오래된 데이터 제거를 위한 임계값 설정
             threshold = 0.3  # 30% 미만인 항목 제거
-            
+
             # 각 카테고리별 데이터 정리
             for category in self.preferences:
                 if self.preferences[category]:
                     max_value = max(self.preferences[category].values())
                     threshold_value = max_value * threshold
-                    
+
                     # 임계값 미만인 항목 제거
                     self.preferences[category] = {
                         k: v for k, v in self.preferences[category].items()
                         if v >= threshold_value
                     }
-            
+
             # main_interests 정리
             if self.main_interests:
                 max_value = max(self.main_interests.values())
@@ -262,7 +262,7 @@ class UserInterests:
                     k: v for k, v in self.main_interests.items()
                     if v >= threshold_value
                 }
-            
+
             # sub_interests 정리
             for category in self.sub_interests:
                 if self.sub_interests[category]:
@@ -272,9 +272,9 @@ class UserInterests:
                         k: v for k, v in self.sub_interests[category].items()
                         if v >= threshold_value
                     }
-            
+
             logger.info(f"관심사 데이터 정리 완료 (기준일: {cutoff_date.isoformat()})")
-            
+
         except Exception as e:
             logger.error(f"Error clearing old interests: {str(e)}")
 
@@ -287,17 +287,17 @@ class UserInterests:
         try:
             # main_interests 업데이트
             self.main_interests[interest] = self.main_interests.get(interest, 0) + 1
-            
+
             # topics에도 반영 (UserProfile에서 참조)
             self.topics[interest] = self.topics.get(interest, 0) + 1
-            
+
             # preferences의 topics에도 반영
             self.preferences["topics"][interest] = \
                 self.preferences["topics"].get(interest, 0) + 1
-                
+
             self.last_update = datetime.now()
             logger.debug(f"주요 관심사 추가: {interest}")
-            
+
         except Exception as e:
             logger.error(f"Error adding main interest: {str(e)}")
 
@@ -313,15 +313,15 @@ class UserInterests:
             if category in self.sub_interests:
                 self.sub_interests[category][interest] = \
                     self.sub_interests[category].get(interest, 0) + 1
-            
+
             # preferences 업데이트
             if category in self.preferences:
                 self.preferences[category][interest] = \
                     self.preferences[category].get(interest, 0) + 1
-                    
+
             self.last_update = datetime.now()
             logger.debug(f"세부 관심사 추가: {category} - {interest}")
-            
+
         except Exception as e:
             logger.error(f"Error adding sub interest: {str(e)}")
 

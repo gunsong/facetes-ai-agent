@@ -290,7 +290,7 @@ class ConversationAnalyzer:
 
             logger.info("대화 분석 완료")
             return response
-            
+
         except Exception as e:
             logger.error(f"Error in analyze_conversation: {str(e)}")
             return self._generate_error_response()

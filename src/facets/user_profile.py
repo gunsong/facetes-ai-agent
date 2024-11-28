@@ -19,7 +19,7 @@ class UserProfile:
     def __init__(self):
         """사용자 프로필 초기화"""
         logger.info("UserProfile 초기화 시작")
-        
+
         # 각 컴포넌트 클래스 인스턴스화
         self.interests = UserInterests()  # 관심사 객체 초기화
         self.activities = Activities()    # 활동 정보
@@ -27,14 +27,14 @@ class UserProfile:
         self.context = ContextMemory()    # 컨텍스트 메모리
         self.metrics = InteractionMetrics() # 상호작용 지표
         self.knowledge = KnowledgeBase()  # 지식 베이스
-        
+
         # 프로필 메타데이터
         self.last_update = None
         self.profile_version = "1.0.0"
-        
+
         # 프로필 데이터 구조 초기화
         self.profile = self._initialize_profile()
-        
+
         logger.info("UserProfile 초기화 완료")
 
     def _initialize_profile(self) -> Dict:
@@ -187,30 +187,30 @@ class UserProfile:
         try:
             if not analysis:
                 return
-                
+
             self.last_update = datetime.now()
-            
+
             # 메인 토픽 업데이트
             main_topic = analysis.get("main_topic")
             if main_topic and main_topic != "unknown":
                 self.interests.add_main_interest(main_topic)
-            
+
             # 서브 토픽 업데이트
             sub_topics = analysis.get("sub_topics", {})
             for category, items in sub_topics.items():
                 if items:
                     for item in items:
                         self.interests.add_sub_interest(category, item)
-            
+
             # 활동 업데이트
             self.activities.update_activity_records(
                 analysis,
                 self.last_update.isoformat()
             )
-            
+
             # 행동 패턴 업데이트
             self.behavior.update_patterns(analysis)
-            
+
             # 컨텍스트 메모리 업데이트
             self.context.update_context_memory(analysis)
 
@@ -223,24 +223,24 @@ class UserProfile:
 
             # 상호작용 지표 업데이트
             self.metrics.update_metrics(analysis)
-            
+
             # 지식 베이스 업데이트
             domain = self._map_domain(analysis.get("main_topic", "unknown"))
             self.knowledge.update_domain_knowledge(domain, analysis)
-            
+
             logger.info(f"프로필 업데이트 완료: {main_topic}")
-            
+
         except Exception as e:
             logger.error(f"Error updating profile: {str(e)}")
 
     def _merge_with_context(self, current_analysis: Dict, context: Dict) -> Dict:
         """
         현재 분석 결과와 이전 컨텍스트를 병합
-        
+
         Args:
             current_analysis: 현재 분석 결과
             context: 관련된 이전 컨텍스트
-            
+
         Returns:
             Dict: 병합된 분석 결과
         """
@@ -436,16 +436,16 @@ class UserProfile:
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 profile_data = json.load(f)
-                
+
             # 각 컴포넌트 상태 복원
             self._restore_components(profile_data)
-            
+
             # 메타데이터 복원
             self.profile_version = profile_data.get("version", "1.0.0")
             last_update = profile_data.get("last_update")
             if last_update:
                 self.last_update = datetime.fromisoformat(last_update)
-                
+
         except Exception as e:
             logger.error(f"Error loading profile: {str(e)}")
 
@@ -455,27 +455,27 @@ class UserProfile:
             if "user_interests" in profile_data:
                 self.interests = UserInterests()
                 # 관심사 데이터 복원 로직
-                
+
             if "behavior_patterns" in profile_data:
                 self.behavior = BehaviorPatterns()
                 # 행동 패턴 데이터 복원 로직
-                
+
             if "knowledge_base" in profile_data:
                 self.knowledge = KnowledgeBase()
                 # 지식 베이스 데이터 복원 로직
-                
+
             if "activities" in profile_data:
                 self.activities = Activities()
                 # 활동 데이터 복원 로직
-                
+
             if "context_memory" in profile_data:
                 self.context = ContextMemory()
                 # 컨텍스트 메모리 데이터 복원 로직
-                
+
             if "interaction_metrics" in profile_data:
                 self.metrics = InteractionMetrics()
                 # 상호작용 메트릭스 데이터 복원 로직
-                
+
         except Exception as e:
             logger.error(f"Error restoring components: {str(e)}")
 
@@ -520,7 +520,7 @@ class UserProfile:
         """도메인별 추천 활동"""
         try:
             suggestions = []
-            
+
             # 1. 관심사 기반 추천
             interest_based = self.interests.get_top_interests("activities")
             if interest_based:
@@ -550,7 +550,7 @@ class UserProfile:
         """연관 주제 추천"""
         try:
             related_topics = []
-            
+
             # 1. 도메인 지식에서 연관 주제 추출
             domain_info = self.knowledge.get_domain_knowledge(domain)
             if domain_info and "topics" in domain_info:
@@ -575,7 +575,7 @@ class UserProfile:
         try:
             logger.info(f"개인화된 추천 생성 시작 - 도메인: {domain}")
             suggestions = []
-            
+
             # 1. 최근 활동 기반 추천
             recent_activities = self.activities.get_activity_summary()
             if recent_activities and "completed_activities" in recent_activities:
@@ -726,18 +726,18 @@ class UserProfile:
     def _get_recent_items(self, data: Dict, days: int = 7) -> List[str]:
         """
         최근 항목 추출
-        
+
         Args:
             data: 분석할 데이터 딕셔너리
             days: 최근 일수 (기본값: 7일)
-            
+
         Returns:
             최근 days일 동안의 항목 리스트
         """
         try:
             current_time = datetime.now()
             cutoff_time = current_time - timedelta(days=days)
-            
+
             recent_items = []
             for item, details in data.items():
                 if isinstance(details, dict) and "timestamp" in details:
@@ -748,11 +748,11 @@ class UserProfile:
                     # 타임스탬프가 없는 경우 빈도수 기반으로 판단
                     if details > 0:  # 최근에 사용된 것으로 간주
                         recent_items.append(item)
-                        
+
             return sorted(recent_items, 
                         key=lambda x: data[x].get("timestamp", "") if isinstance(data[x], dict) else data[x],
                         reverse=True)
-                        
+
         except Exception as e:
             logger.error(f"Error getting recent items: {str(e)}")
             return []
@@ -760,16 +760,16 @@ class UserProfile:
     def _get_declining_items(self, data: Dict) -> List[str]:
         """
         감소 추세 항목 추출
-        
+
         Args:
             data: 분석할 데이터 딕셔너리
-            
+
         Returns:
             감소 추세를 보이는 항목 리스트
         """
         try:
             declining_items = []
-            
+
             for item, details in data.items():
                 if isinstance(details, dict) and "history" in details:
                     # 시계열 데이터가 있는 경우
@@ -777,16 +777,16 @@ class UserProfile:
                     if len(history) >= 2:
                         recent_avg = sum(history[-3:]) / len(history[-3:])  # 최근 3개 평균
                         past_avg = sum(history[:-3]) / len(history[:-3])    # 이전 데이터 평균
-                        
+
                         if recent_avg < past_avg * 0.8:  # 20% 이상 감소
                             declining_items.append(item)
                 elif isinstance(details, (int, float)):
                     # 단순 빈도수의 경우, 임계값 이하인 경우 감소로 간주
                     if details < 3:  # 임계값 설정
                         declining_items.append(item)
-                        
+
             return declining_items
-            
+
         except Exception as e:
             logger.error(f"Error getting declining items: {str(e)}")
             return []
@@ -794,17 +794,17 @@ class UserProfile:
     def _get_changing_items(self, data: Dict) -> List[str]:
         """
         변화가 있는 항목 추출
-        
+
         Args:
             data: 분석할 데이터 딕셔너리
-            
+
         Returns:
             유의미한 변화를 보이는 항목 리스트
         """
         try:
             changing_items = []
             change_threshold = 0.3  # 30% 변화율을 기준으로 설정
-            
+
             for item, details in data.items():
                 if isinstance(details, dict) and "history" in details:
                     # 시계열 데이터가 있는 경우
@@ -812,7 +812,7 @@ class UserProfile:
                     if len(history) >= 2:
                         recent_value = history[-1]
                         previous_value = history[-2]
-                        
+
                         if previous_value > 0:
                             change_rate = abs(recent_value - previous_value) / previous_value
                             if change_rate >= change_threshold:
@@ -822,9 +822,9 @@ class UserProfile:
                     baseline = sum(v for v in data.values() if isinstance(v, (int, float))) / len(data)
                     if abs(details - baseline) / baseline >= change_threshold:
                         changing_items.append(item)
-                        
+
             return changing_items
-            
+
         except Exception as e:
             logger.error(f"Error getting changing items: {str(e)}")
             return []

@@ -15,33 +15,33 @@ class BehaviorPatterns:
             "seasonal": {},   # 계절별 선호도
             "periodic": {}    # 주기적 패턴
         }
-        
+
         self.spatial = {
             "locations": {},    # 선호 장소
             "regions": {},      # 선호 지역
             "venue_types": {},  # 선호 시설 유형
             "types": {}         # 장소 유형
         }
-        
+
         self.social = {
             "companions": {},     # 동반자 유형
             "group_size": {},     # 선호 그룹 크기
             "social_context": {}, # 사회적 상황
             "contexts": {}        # 상황별 패턴
         }
-        
+
         self.spending = {
             "amount_range": {},   # 소비 금액대
             "frequency": {},      # 소비 빈도
             "categories": {}      # 소비 카테고리
         }
-        
+
         self.interaction_style = {
             "query_types": {},    # 질문 유형 분포
             "tone": {},           # 대화 톤 분포
             "detail_level": {}    # 상세도 선호도
         }
-        
+
         self.last_update = None   # 마지막 업데이트 시간
 
     def update_patterns(self, analysis: Dict) -> None:
@@ -52,28 +52,28 @@ class BehaviorPatterns:
 
             if "sub_topics" in analysis:
                 sub_topics = analysis["sub_topics"]
-                
+
                 # 시간 패턴 업데이트
                 if "temporal" in sub_topics:
                     self.update_temporal_patterns(sub_topics["temporal"])
-                
+
                 # 공간 패턴 업데이트
                 if "spatial" in sub_topics:
                     self.update_spatial_patterns(sub_topics["spatial"])
-                
+
                 # 사회적 패턴 업데이트
                 if "companions" in sub_topics:
                     self.update_social_patterns(sub_topics["companions"])
-                
+
                 # 소비 패턴 업데이트
                 if "spending" in sub_topics:
                     self.update_spending_patterns(sub_topics["spending"])
-            
+
             # 상호작용 스타일 업데이트
             self.update_interaction_style(analysis)
-            
+
             logger.info("행동 패턴 업데이트 완료")
-            
+
         except Exception as e:
             logger.error(f"Error updating patterns: {str(e)}")
 
@@ -82,37 +82,37 @@ class BehaviorPatterns:
         try:
             for time_info in temporal_info:
                 time_info = str(time_info).lower()
-                
+
                 # 일간 패턴 (아침, 점심, 저녁, 밤)
                 if any(keyword in time_info for keyword in ["아침", "점심", "저녁", "밤"]):
                     self.temporal["daily"][time_info] = \
                         self.temporal["daily"].get(time_info, 0) + 1
                     logger.debug(f"일간 패턴 업데이트: {time_info}")
-                
+
                 # 주간 패턴 (평일, 주말)
                 elif any(keyword in time_info for keyword in ["평일", "주말"]):
                     self.temporal["weekly"][time_info] = \
                         self.temporal["weekly"].get(time_info, 0) + 1
                     logger.debug(f"주간 패턴 업데이트: {time_info}")
-                
+
                 # 월간 패턴 (월초, 월말, 중순)
                 elif any(keyword in time_info for keyword in ["월초", "월말", "중순"]):
                     self.temporal["monthly"][time_info] = \
                         self.temporal["monthly"].get(time_info, 0) + 1
                     logger.debug(f"월간 패턴 업데이트: {time_info}")
-                
+
                 # 계절 패턴
                 elif any(season in time_info for season in ["봄", "여름", "가을", "겨울"]):
                     self.temporal["seasonal"][time_info] = \
                         self.temporal["seasonal"].get(time_info, 0) + 1
                     logger.debug(f"계절 패턴 업데이트: {time_info}")
-                
+
                 # 주기적 패턴
                 elif any(keyword in time_info for keyword in ["매일", "매주", "매월", "매년"]):
                     self.temporal["periodic"][time_info] = \
                         self.temporal["periodic"].get(time_info, 0) + 1
                     logger.debug(f"주기적 패턴 업데이트: {time_info}")
-                    
+
         except Exception as e:
             logger.error(f"Error updating temporal patterns: {str(e)}")
 
@@ -215,7 +215,7 @@ class BehaviorPatterns:
                     query_type = intent.get("유형", "unknown")
                 else:
                     query_type = str(intent)
-                    
+
                 self.interaction_style["query_types"][query_type] = \
                     self.interaction_style["query_types"].get(query_type, 0) + 1
                 logger.debug(f"질문 유형 업데이트: {query_type}")
@@ -226,7 +226,7 @@ class BehaviorPatterns:
                 self.interaction_style["tone"][tone] = \
                     self.interaction_style["tone"].get(tone, 0) + 1
                 logger.debug(f"대화 톤 업데이트: {tone}")
-                
+
         except Exception as e:
             logger.error(f"Error updating interaction style: {str(e)}")
 
@@ -242,7 +242,7 @@ class BehaviorPatterns:
             "office": ["사무실", "회사", "업체"],
             "cultural": ["박물관", "미술관", "문화센터"]
         }
-        
+
         for venue_type, keywords in venue_keywords.items():
             if any(keyword in location for keyword in keywords):
                 return venue_type
@@ -258,7 +258,7 @@ class BehaviorPatterns:
             "commercial": ["상가", "매장", "시장"],
             "residential": ["주거", "아파트", "빌라"]
         }
-        
+
         for location_type, keywords in location_types.items():
             if any(keyword in location for keyword in keywords):
                 return location_type
@@ -273,7 +273,7 @@ class BehaviorPatterns:
             "date": ["연인", "파트너", "데이트"],
             "group": ["모임", "단체", "팀", "동호회"]
         }
-        
+
         for context, keywords in context_keywords.items():
             if any(any(keyword in companion.lower() for keyword in keywords) 
                   for companion in companions):
@@ -304,7 +304,7 @@ class BehaviorPatterns:
             "suggestion": ["추천", "제안", "조언", "알려주세요"],
             "opinion": ["생각", "느낌", "의견", "판단"]
         }
-        
+
         intent = intent.lower()
         for query_type, keywords in query_types.items():
             if any(keyword in intent for keyword in keywords):

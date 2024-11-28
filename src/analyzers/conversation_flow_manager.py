@@ -7,7 +7,7 @@ logger = get_logger(__name__)
 
 class ConversationFlowManager:
     """대화 흐름 관리 클래스"""
-    
+
     def __init__(self):
         self.conversation_state = {
             'current_topic': None,
@@ -17,7 +17,7 @@ class ConversationFlowManager:
             'last_response': None,
             'context_stack': []
         }
-        
+
     def update_state(
         self, 
         query: str, 
@@ -34,16 +34,16 @@ class ConversationFlowManager:
                 'current_intent': analysis_result.get('intent'),
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
-            
+
             # 명확화 필요 여부 확인
             self.conversation_state['pending_clarification'] = \
                 self._needs_clarification(analysis_result)
-            
+
             # 컨텍스트 스택 관리
             self._update_context_stack(analysis_result)
-            
+
             logger.info("Conversation state updated successfully")
-            
+
         except Exception as e:
             logger.error(f"Error updating conversation state: {str(e)}")
 
@@ -101,7 +101,7 @@ class ConversationFlowManager:
         try:
             available_info = []
             sub_topics = analysis_result.get('sub_topics', {})
-            
+
             if sub_topics.get('spatial'):
                 available_info.append('location')
             if sub_topics.get('temporal'):
@@ -110,9 +110,9 @@ class ConversationFlowManager:
                 available_info.append('subject')
             if sub_topics.get('activities'):
                 available_info.append('preference')
-                
+
             return available_info
-            
+
         except Exception as e:
             logger.error(f"Error getting available info: {str(e)}")
             return []
@@ -126,11 +126,11 @@ class ConversationFlowManager:
                 'intent': analysis_result.get('intent'),
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
-            
+
             # 스택 크기 제한 (최근 5개만 유지)
             if len(self.conversation_state['context_stack']) > 5:
                 self.conversation_state['context_stack'].pop(0)
-                
+
         except Exception as e:
             logger.error(f"Error updating context stack: {str(e)}")
 
@@ -144,7 +144,7 @@ class ConversationFlowManager:
             if self.conversation_state['context_stack']:
                 return self.conversation_state['context_stack'][-1]
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting active context: {str(e)}")
             return None
