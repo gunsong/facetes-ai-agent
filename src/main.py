@@ -80,24 +80,35 @@ class ConversationInsightUI:
         html = "<div style='padding: 20px; background-color: white; border: 1px solid #ddd; border-radius: 8px; color: black;'>"
         html += "<h3 style='color: #2c3e50;'>👤 사용자 프로필</h3>"
 
-        # 관심사 분석
+        # 통합된 관심사 분석
         html += "<div class='pattern-section'>"
-        html += "<h4 style='color: #34495e; margin: 15px 0 10px 0;'>🎯 관심사 분석</h4>"
+        html += "<h4 style='color: #34495e; margin: 15px 0 10px 0;'>🎯 관심사 및 활동 분석</h4>"
         html += "<div style='background-color: #f8f9fa; padding: 10px; border-radius: 4px; color: black;'>"
+
         if 'user_interests' in profile:
             interests = profile['user_interests']
+            combined_interests = {}
+
+            # 모든 관심사 통합
             if interests.get('top_topics'):
-                html += "<div style='margin: 5px 0;'><b style='color: black;'>주요 관심사:</b></div>"
                 for topic, count in interests['top_topics']:
-                    html += f"<div style='margin: 5px 0 5px 15px; color: black;'>- {topic}: {count}회</div>"
+                    combined_interests[topic] = {'count': count, 'types': ['주요 관심사']}
 
             if interests.get('preferences'):
-                prefs = interests['preferences']
-                for pref_type, items in prefs.items():
-                    if items:
-                        html += f"<div style='margin: 10px 0;'><b style='color: black;'>{pref_type}:</b></div>"
-                        for item, count in items:
-                            html += f"<div style='margin: 5px 0 5px 15px; color: black;'>- {item}: {count}회</div>"
+                for pref_type, items in interests['preferences'].items():
+                    for item, count in items:
+                        if item in combined_interests:
+                            combined_interests[item]['count'] += count
+                            combined_interests[item]['types'].append(pref_type)
+                        else:
+                            combined_interests[item] = {'count': count, 'types': [pref_type]}
+
+            # 통합된 결과 출력
+            if combined_interests:
+                for item, data in sorted(combined_interests.items(), key=lambda x: x[1]['count'], reverse=True):
+                    types_str = ', '.join(data['types'])
+                    html += f"<div style='margin: 5px 0 5px 15px; color: black;'>- {item}: {data['count']}회 ({types_str})</div>"
+
         html += "</div></div>"
 
         # 행동 패턴
