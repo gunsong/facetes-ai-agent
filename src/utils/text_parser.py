@@ -137,28 +137,6 @@ class TextParser:
 
     def parse_llm_response(self, response: str) -> Dict:
         """LLM 응답 파싱"""
-        # try:
-        #     # JSON 형식 검증 및 파싱
-        #     if not response or not response.strip():
-        #         return self._generate_default_analysis()
-
-        #     # JSON 블록 추출
-        #     json_block = self._extract_json_block(response)
-        #     if not json_block:
-        #         return self._generate_default_analysis()
-
-        #     # JSON 파싱
-        #     parsed_data = json.loads(json_block)
-
-        #     # 필수 필드 검증 및 보완
-        #     return self._validate_and_complete_analysis(parsed_data)
-
-        # except json.JSONDecodeError as e:
-        #     logger.error(f"JSON parsing error: {str(e)}")
-        #     return self._generate_default_analysis()
-        # except Exception as e:
-        #     logger.error(f"Error parsing LLM response: {str(e)}")
-        #     return self._generate_default_analysis()
         try:
             # JSON 문자열에서 실제 JSON 부분 추출
             json_start = response.find('{')
@@ -178,6 +156,12 @@ class TextParser:
                     "spatial": data.get("세부 주제", {}).get("공간 요소", []),
                     "companions": data.get("세부 주제", {}).get("동반자", [])
                 },
+                "personal_info": data.get("개인 정보", {
+                    "기본 정보": {},
+                    "가족 관계": {},
+                    "직업 정보": {},
+                    "거주 정보": {}
+                }),
                 "intent": data.get("의도 분석", "unknown"),
                 "keywords": data.get("키워드", []),
                 "reliability_score": data.get("신뢰도 점수", 0),

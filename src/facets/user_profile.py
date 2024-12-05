@@ -40,6 +40,46 @@ class UserProfile:
     def _initialize_profile(self) -> Dict:
         """프로필 초기화"""
         return {
+            "user_profile": {
+                "personal_info": {
+                    "email": None,          # 회원가입 필수
+                    "birth_date": None,     # 회원가입 필수
+                    "nationality": None,    # 회원가입 필수
+                    "language": [],         # 회원가입 필수
+                    "age": None,            # 대화 추출
+                    "gender": None,         # 대화 추출
+                    "marital_status": None, # 대화 추출
+                    "name": None,           # 회원가입 선택
+                    "phone": None,          # 회원가입 선택
+                    "profile_image": None   # 회원가입 선택
+                },
+                "family_info": {
+                    "family_members": [],  # [{"relation": "spouse", "age": 35}, ...]
+                    "household_size": None,
+                    "dependents": [],
+                    "living_arrangement": None
+                },
+                "professional_info": {
+                    "occupation": None,
+                    "company_name": None,
+                    "industry": None,
+                    "position": None,
+                    "work_address": None,
+                    "work_hours": None,
+                    "employment_history": [],
+                    "skills": [],
+                    "certifications": []
+                },
+                "residence_info": {
+                    "current_address": None,
+                    "housing_type": None,
+                    "ownership_status": None,
+                    "residence_period": None,
+                    "previous_addresses": [],
+                    "neighborhood": None,
+                    "commute_preferences": {}
+                }
+            },
             "user_interests": {
                 "topics": {},          # 관심 주제 분포
                 "keywords": {},        # 자주 사용하는 키워드
@@ -202,6 +242,10 @@ class UserProfile:
                     for item in items:
                         self.interests.add_sub_interest(category, item)
 
+            # 개인 정보 업데이트
+            if personal_info := analysis.get("personal_info"):
+                self._update_personal_info(personal_info)
+
             # 활동 업데이트
             self.activities.update_activity_records(
                 analysis,
@@ -229,9 +273,310 @@ class UserProfile:
             self.knowledge.update_domain_knowledge(domain, analysis)
 
             logger.info(f"프로필 업데이트 완료: {main_topic}")
-
         except Exception as e:
-            logger.error(f"Error updating profile: {str(e)}")
+            logger.error(f"프로필 업데이트 중 오류: {str(e)}")
+
+    def _update_personal_info(self, personal_info: Dict) -> None:
+        """개인 정보 업데이트"""
+        try:
+            for info_type, info_data in personal_info.items():
+                # 신뢰도 확인 및 로깅
+                confidence = info_data.get("추출_신뢰도", 0)
+                logger.debug(f"처리 중인 정보 유형: {info_type}, 신뢰도: {confidence}")
+                if confidence < 70:
+                    logger.warning(f"낮은 신뢰도 정보 처리: {info_type} ({confidence})")
+
+                if info_type == "기본 정보":
+                    self._update_basic_info_if_exists(info_data)
+                elif info_type == "가족 관계":
+                    self._update_family_info_if_exists(info_data)
+                elif info_type == "직업 정보":
+                    self._update_professional_info_if_exists(info_data)
+                elif info_type == "거주 정보":
+                    self._update_residence_info_if_exists(info_data)
+                else:
+                    logger.warning(f"알 수 없는 정보 유형: {info_type}")
+
+            logger.info("개인 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"개인 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_basic_info_if_exists(self, basic_info: Dict) -> None:
+        """기본 정보 업데이트 (값이 있는 경우만)"""
+        try:
+            for key, value in basic_info.items():
+                if value is not None and key in ["나이", "성별", "결혼상태"]:
+                    self.profile["user_profile"]["personal_info"][key] = value
+            logger.info("기본 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"기본 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_family_info_if_exists(self, family_info: Dict) -> None:
+        """가족 관계 정보 업데이트 (값이 있는 경우만)"""
+        try:
+            family_data = self.profile["user_profile"]["family_info"]
+
+            if members := family_info.get("구성원"):
+                family_data["family_members"] = members
+
+            if size := family_info.get("가구_크기"):
+                family_data["household_size"] = size
+
+            if arrangement := family_info.get("동거_여부"):
+                family_data["living_arrangement"] = arrangement
+
+            logger.info("가족 관계 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"가족 관계 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_professional_info_if_exists(self, job_info: Dict) -> None:
+        """직업 정보 업데이트 (값이 있는 경우만)"""
+        try:
+            prof_data = self.profile["user_profile"]["professional_info"]
+
+            if workplace := job_info.get("직장", {}):
+                if company := workplace.get("회사명"):
+                    prof_data["company_name"] = company
+                if industry := workplace.get("업종"):
+                    prof_data["industry"] = industry
+                if location := workplace.get("근무지"):
+                    prof_data["work_address"] = location
+
+            if job_role := job_info.get("직무", {}):
+                if position := job_role.get("직위"):
+                    prof_data["position"] = position
+                if role := job_role.get("역할"):
+                    prof_data["occupation"] = role
+
+            if work_type := job_info.get("근무형태"):
+                prof_data["work_hours"] = work_type
+
+            logger.info("직업 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"직업 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_residence_info_if_exists(self, residence_info: Dict) -> None:
+        """거주 정보 업데이트 (값이 있는 경우만)"""
+        try:
+            res_data = self.profile["user_profile"]["residence_info"]
+
+            if address := residence_info.get("주소"):
+                current_address = " ".join(filter(None, [
+                    address.get("도시"),
+                    address.get("동네"),
+                    address.get("상세주소")
+                ]))
+                if current_address:
+                    res_data["current_address"] = current_address
+
+            if housing := residence_info.get("주거형태"):
+                res_data["housing_type"] = housing
+
+            if ownership := residence_info.get("점유형태"):
+                res_data["ownership_status"] = ownership
+
+            if period := residence_info.get("거주기간"):
+                res_data["residence_period"] = period
+
+            logger.info("거주 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"거주 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_basic_info(self, basic_info: Dict) -> None:
+        """기본 정보 업데이트"""
+        try:
+            self.profile["user_profile"]["personal_info"].update({
+                "age": basic_info.get("나이"),
+                "gender": basic_info.get("성별"),
+                "marital_status": basic_info.get("결혼상태")
+            })
+        except Exception as e:
+            logger.error(f"기본 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_family_info(self, family_info: Dict) -> None:
+        """가족 관계 정보 업데이트"""
+        try:
+            # 기존 가족 구성원 정보
+            current_members = {
+                member["relation"]: member 
+                for member in self.profile["user_profile"]["family_info"]["family_members"]
+            }
+
+            # 새로운 가족 구성원 정보 업데이트
+            new_members = []
+            for member in family_info.get("구성원", []):
+                relation = member.get("relation")
+                if relation:
+                    if relation in current_members:
+                        # 기존 구성원 정보 업데이트
+                        current_members[relation].update(member)
+                    else:
+                        # 새로운 구성원 추가
+                        new_members.append(member)
+
+            # 가족 정보 업데이트
+            self.profile["user_profile"]["family_info"].update({
+                "family_members": list(current_members.values()) + new_members,
+                "household_size": family_info.get("가구_크기"),
+                "living_arrangement": family_info.get("동거_여부"),
+                "dependents": [
+                    member for member in (list(current_members.values()) + new_members)
+                    if member.get("is_dependent", False)
+                ]
+            })
+
+            logger.info("가족 관계 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"가족 관계 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_professional_info(self, job_info: Dict) -> None:
+        """직업 정보 업데이트"""
+        try:
+            workplace = job_info["직장"]
+            job_role = job_info["직무"]
+
+            # 업종 추론
+            if not workplace.get("업종"):
+                workplace["업종"] = self._infer_industry(workplace.get("회사명"))
+
+            # 직업 정보 업데이트
+            self.profile["user_profile"]["professional_info"].update({
+                "company_name": workplace.get("회사명"),
+                "industry": workplace.get("업종"),
+                "work_address": workplace.get("근무지"),
+                "position": job_role.get("직위"),
+                "occupation": job_role.get("역할"),
+                "work_hours": job_info.get("근무형태")
+            })
+
+            # 직장 변경 시 이력 추가
+            if workplace.get("회사명"):
+                self._update_employment_history(workplace["회사명"], job_role.get("직위"))
+
+            logger.info("직업 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"직업 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_residence_info(self, residence_info: Dict) -> None:
+        """거주 정보 업데이트"""
+        try:
+            address = residence_info["주소"]
+
+            # 도시 정보 추론
+            if not address.get("도시") and address.get("동네"):
+                address["도시"] = self._infer_city(address["동네"])
+
+            current_address = " ".join(filter(None, [
+                address.get("도시"),
+                address.get("동네"),
+                address.get("상세주소")
+            ]))
+
+            if current_address:
+                # 기존 주소가 있으면 이력에 추가
+                old_address = self.profile["user_profile"]["residence_info"]["current_address"]
+                if old_address and old_address != current_address:
+                    self.profile["user_profile"]["residence_info"]["previous_addresses"].append({
+                        "address": old_address,
+                        "end_date": datetime.now().strftime("%Y-%m-%d")
+                    })
+
+                # 새로운 주소 정보 업데이트
+                self.profile["user_profile"]["residence_info"].update({
+                    "current_address": current_address,
+                    "housing_type": residence_info.get("주거형태"),
+                    "ownership_status": residence_info.get("점유형태"),
+                    "residence_period": residence_info.get("거주기간")
+                })
+
+            logger.info("거주 정보 업데이트 완료")
+        except Exception as e:
+            logger.error(f"거주 정보 업데이트 중 오류: {str(e)}")
+
+    def _update_employment_history(self, company: str, position: Optional[str]) -> None:
+        """직장 이력 업데이트"""
+        try:
+            employment_history = self.profile["user_profile"]["professional_info"]["employment_history"]
+            if employment_history:
+                last_job = employment_history[-1]
+                if last_job["company"] != company:
+                    employment_history.append({
+                        "company": company,
+                        "position": position,
+                        "start_date": datetime.now().strftime("%Y-%m-%d")
+                    })
+            else:
+                employment_history.append({
+                    "company": company,
+                    "position": position,
+                    "start_date": datetime.now().strftime("%Y-%m-%d")
+                })
+
+            logger.info("직장 이력 업데이트 완료")
+        except Exception as e:
+            logger.error(f"직장 이력 업데이트 중 오류: {str(e)}")
+
+    def _infer_industry(self, company_name: str) -> Optional[str]:
+        """회사명으로 업종 추론"""
+        try:
+            # 주요 업종별 키워드 매핑
+            industry_keywords = {
+                "IT/기술": ["테크", "소프트웨어", "시스템", "솔루션", "IT", "정보통신"],
+                "금융": ["은행", "증권", "보험", "카드", "캐피탈", "금융"],
+                "제조": ["전자", "자동차", "화학", "제철", "중공업"],
+                "유통/서비스": ["마트", "백화점", "쇼핑", "호텔", "리테일"],
+                "통신": ["텔레콤", "통신", "모바일"],
+                "교육": ["학원", "교육", "스쿨", "러닝"],
+                "의료/제약": ["병원", "제약", "바이오", "메디컬", "헬스케어"]
+            }
+
+            if not company_name:
+                return None
+
+            company_name = company_name.lower()
+            for industry, keywords in industry_keywords.items():
+                if any(keyword.lower() in company_name for keyword in keywords):
+                    logger.info(f"업종 추론 결과: {industry} (회사명: {company_name})")
+                    return industry
+
+            logger.info("업종 업데이트 완료")
+            return "기타"
+        except Exception as e:
+            logger.error(f"업종 추론 중 오류: {str(e)}")
+            return None
+
+    def _infer_city(self, district: str) -> Optional[str]:
+        """동네명으로 도시 추론"""
+        try:
+            # 주요 도시별 행정구역 매핑
+            city_districts = {
+                "서울": ["강남구", "서초구", "송파구", "강동구", "마포구", "용산구", 
+                        "성동구", "광진구", "중구", "종로구", "동대문구", "성북구",
+                        "강북구", "도봉구", "노원구", "중랑구", "은평구", "서대문구",
+                        "강서구", "양천구", "구로구", "금천구", "영등포구", "동작구", "관악구"],
+                "부산": ["중구", "서구", "동구", "영도구", "부산진구", "동래구", "남구",
+                        "북구", "해운대구", "사하구", "금정구", "강서구", "연제구",
+                        "수영구", "사상구", "기장군"],
+                "인천": ["중구", "동구", "미추홀구", "연수구", "남동구", "부평구",
+                        "계양구", "서구", "강화군", "옹진군"]
+            }
+
+            if not district:
+                return None
+
+            # 구/동 분리
+            district_parts = district.split()
+            for part in district_parts:
+                for city, districts in city_districts.items():
+                    if any(dist in part for dist in districts):
+                        logger.info(f"도시 추론 결과: {city} (행정구역: {district})")
+                        return city
+
+            logger.info("도시 업데이트 완료")
+            return None
+        except Exception as e:
+            logger.error(f"도시 추론 중 오류: {str(e)}")
+            return None
 
     def _merge_with_context(self, current_analysis: Dict, context: Dict) -> Dict:
         """
@@ -281,7 +626,7 @@ class UserProfile:
                 # 감정 강도 평균 계산
                 current_intensity = merged["sentiment"].get("intensity", 50)
                 context_intensity = context["sentiment"].get("intensity", 50)
-                merged["sentiment"]["intensity"] = (current_intensity + context_intensity) // 2
+                merged["sentiment"]["intensity"] = (current_intensity + context_intensity) # 2
 
             # 5. 신뢰도 점수 조정
             if context.get("reliability_score"):
@@ -299,7 +644,6 @@ class UserProfile:
 
             logger.debug(f"컨텍스트 병합 완료: {merged}")
             return merged
-
         except Exception as e:
             logger.error(f"Error merging with context: {str(e)}")
             return current_analysis
@@ -322,6 +666,7 @@ class UserProfile:
             profile_data = {
                 "version": self.profile_version,
                 "last_update": self.last_update.isoformat() if self.last_update else None,
+                "user_profile": self.profile["user_profile"],
                 "user_interests": self._get_interests_summary(),
                 "behavior_patterns": self._get_behavior_summary(),
                 "knowledge_base": self._get_knowledge_summary(),
@@ -329,7 +674,7 @@ class UserProfile:
                 "context_memory": self._get_memory_summary(),
                 "interaction_metrics": self._get_metrics_summary()
             }
-            logger.debug("프로필 정보 조회 완료")
+            logger.debug(f"프로필 정보 조회 완료: {json.dumps(profile_data, indent=2, ensure_ascii=False)}")
             return profile_data
         except Exception as e:
             logger.error(f"Error getting profile: {str(e)}")
@@ -541,7 +886,6 @@ class UserProfile:
                         suggestions.append(f"Consider {top_pref} for {pref_type}")
 
             return suggestions[:5]  # 최대 5개 추천
-
         except Exception as e:
             logger.error(f"Error getting suggested actions: {str(e)}")
             return []
@@ -565,7 +909,6 @@ class UserProfile:
                     related_topics.append(context.get("topic"))
 
             return list(set(related_topics))  # 중복 제거
-
         except Exception as e:
             logger.error(f"Error getting related topics: {str(e)}")
             return []
@@ -624,7 +967,6 @@ class UserProfile:
                     logger.warning(f"패턴 정렬 중 오류: {str(e)}")
 
             return list(set(suggestions))[:5]  # 중복 제거 및 최대 5개로 제한
-
         except Exception as e:
             logger.error(f"Error getting personalized suggestions: {str(e)}")
             return ["Try something new"]  # 기본 추천 제공
@@ -752,7 +1094,6 @@ class UserProfile:
             return sorted(recent_items, 
                         key=lambda x: data[x].get("timestamp", "") if isinstance(data[x], dict) else data[x],
                         reverse=True)
-
         except Exception as e:
             logger.error(f"Error getting recent items: {str(e)}")
             return []
@@ -786,7 +1127,6 @@ class UserProfile:
                         declining_items.append(item)
 
             return declining_items
-
         except Exception as e:
             logger.error(f"Error getting declining items: {str(e)}")
             return []
@@ -824,7 +1164,6 @@ class UserProfile:
                         changing_items.append(item)
 
             return changing_items
-
         except Exception as e:
             logger.error(f"Error getting changing items: {str(e)}")
             return []
