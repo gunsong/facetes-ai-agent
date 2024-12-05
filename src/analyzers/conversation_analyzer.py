@@ -1,6 +1,5 @@
 import json
 from datetime import datetime
-from functools import lru_cache
 from typing import Dict, List, Optional
 
 from analyzers.context_prioritizer import ContextPrioritizer
@@ -182,7 +181,6 @@ class ConversationAnalyzer:
             logger.error(f"프롬프트 템플릿 생성 중 오류 발생: {str(e)}")
             raise
 
-    @lru_cache(maxsize=1000)
     async def _call_llm(self, prompt: str) -> str:
         """LLM API 호출"""
         try:
@@ -307,8 +305,8 @@ class ConversationAnalyzer:
 
             # 사용자 프로필 업데이트
             logger.info("사용자 프로필 업데이트 시작")
-            if "개인 정보" in parsed_analysis:
-                logger.debug(f"추출된 개인 정보: {json.dumps(parsed_analysis['개인 정보'], indent=2, ensure_ascii=False)}")
+            if "personal_info" in parsed_analysis:
+                logger.debug(f"추출된 개인 정보: {json.dumps(parsed_analysis['personal_info'], indent=2, ensure_ascii=False)}")
             self.user_profile.update_from_analysis(parsed_analysis)
             logger.info("사용자 프로필 업데이트 완료")
             logger.info(f"업데이트된 프로필: {json.dumps(self.user_profile.get_profile(), ensure_ascii=False)}")
@@ -325,7 +323,6 @@ class ConversationAnalyzer:
 
             logger.info("대화 분석 완료")
             return response
-
         except Exception as e:
             logger.error(f"Error in analyze_conversation: {str(e)}")
             return self._generate_error_response()

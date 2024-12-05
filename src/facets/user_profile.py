@@ -42,16 +42,17 @@ class UserProfile:
         return {
             "user_profile": {
                 "personal_info": {
-                    "email": None,          # 회원가입 필수
-                    "birth_date": None,     # 회원가입 필수
-                    "nationality": None,    # 회원가입 필수
-                    "language": [],         # 회원가입 필수
-                    "age": None,            # 대화 추출
-                    "gender": None,         # 대화 추출
-                    "marital_status": None, # 대화 추출
-                    "name": None,           # 회원가입 선택
-                    "phone": None,          # 회원가입 선택
-                    "profile_image": None   # 회원가입 선택
+                    "name": "홍길동",  # 기본값 설정
+                    "email": "user@example.com",  # 기본값 설정
+                    "address": "서울시 강남구",  # 기본값 설정
+                    "birth_date": None,
+                    "nationality": None,
+                    "language": [],
+                    "age": None,
+                    "gender": None,
+                    "marital_status": None,
+                    "phone": None,
+                    "profile_image": None
                 },
                 "family_info": {
                     "family_members": [],  # [{"relation": "spouse", "age": 35}, ...]
@@ -243,8 +244,11 @@ class UserProfile:
                         self.interests.add_sub_interest(category, item)
 
             # 개인 정보 업데이트
-            if personal_info := analysis.get("personal_info"):
+            personal_info = analysis.get("personal_info")
+            logger.info(f"개인 정보 업데이트 시작: {personal_info}")
+            if personal_info:
                 self._update_personal_info(personal_info)
+            logger.info(f"개인 정보 업데이트 완료: {main_topic}")
 
             # 활동 업데이트
             self.activities.update_activity_records(
@@ -276,13 +280,27 @@ class UserProfile:
         except Exception as e:
             logger.error(f"프로필 업데이트 중 오류: {str(e)}")
 
+    def update_default_personal_info(self, name: str = None, email: str = None, address: str = None) -> None:
+        """개인 기본 정보 업데이트"""
+        try:
+            if name:
+                self.profile["user_profile"]["personal_info"]["name"] = name
+            if email:
+                self.profile["user_profile"]["personal_info"]["email"] = email
+            if address:
+                self.profile["user_profile"]["personal_info"]["address"] = address
+
+            logger.info(f"개인 기본 정보 업데이트 완료. {name}, {email}, {address}")
+        except Exception as e:
+            logger.error(f"개인 기본 정보 업데이트 중 오류: {str(e)}")
+
     def _update_personal_info(self, personal_info: Dict) -> None:
         """개인 정보 업데이트"""
         try:
             for info_type, info_data in personal_info.items():
                 # 신뢰도 확인 및 로깅
                 confidence = info_data.get("추출_신뢰도", 0)
-                logger.debug(f"처리 중인 정보 유형: {info_type}, 신뢰도: {confidence}")
+                logger.info(f"처리 중인 정보 유형: {info_type}, 신뢰도: {confidence}")
                 if confidence < 70:
                     logger.warning(f"낮은 신뢰도 정보 처리: {info_type} ({confidence})")
 

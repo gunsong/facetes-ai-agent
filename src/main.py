@@ -21,7 +21,10 @@ class ConversationInsightUI:
             openai_base_url=openai_base_url
         )
         self.similarity_analyzer = SimilarityAnalyzer(self.analyzer.client)
-        self.prompt_generator = PromptGenerator()
+
+        self.user_profile = self.analyzer.user_profile
+        self.personal_info = self.user_profile.get_profile()["user_profile"]["personal_info"]
+        self.prompt_generator = PromptGenerator(self.user_profile)
 
     def format_analysis_result(self, result: Dict) -> str:
         """분석 결과 포맷팅"""
@@ -248,18 +251,18 @@ class ConversationInsightUI:
 
             # 프롬프트 생성 (유사 대화가 있는 경우)
             enhanced_prompt = ""
-            new_query_prompt = ""
+            suggestion_query_prompt = ""
             if similar_conversations:
                 enhanced_prompt = self.prompt_generator.create_enhanced_prompt(
                     analysis_result,
                     similar_conversations
                 )
-                new_query_prompt = self.prompt_generator.create_new_query_prompt(
+                suggestion_query_prompt = self.prompt_generator.create_suggestion_query_prompt(
                     analysis_result,
                     similar_conversations
                 )
                 logger.info(f"enhanced_prompt: {enhanced_prompt}")
-                logger.info(f"new_query_prompt: {new_query_prompt}")
+                logger.info(f"suggestion_query_prompt: {suggestion_query_prompt}")
 
             # 결과 포맷팅 및 반환
             return (
@@ -267,7 +270,7 @@ class ConversationInsightUI:
                 self.format_user_profile(user_profile),
                 self.format_conversation_history(conversation_history),
                 enhanced_prompt,
-                new_query_prompt
+                suggestion_query_prompt
             )
 
         except Exception as e:
@@ -277,6 +280,40 @@ class ConversationInsightUI:
     def create_ui(self) -> gr.Interface:
         """Gradio UI 생성"""
         with gr.Blocks() as interface:
+            with gr.Row():
+                try:
+                    # 기본값 설정 및 타입 검증
+                    personal_info = self._validate_personal_info(self.personal_info)
+
+                    name_input = gr.Textbox(
+                        label="이름",
+                        value=personal_info.get("name", ""),
+                        placeholder="이름을 입력하세요",
+                        scale=1
+                    )
+                    email_input = gr.Textbox(
+                        label="이메일",
+                        value=personal_info.get("email", ""),
+                        placeholder="이메일을 입력하세요",
+                        scale=2
+                    )
+                    address_input = gr.Textbox(
+                        label="주소",
+                        value=personal_info.get("address", ""),
+                        placeholder="주소를 입력하세요",
+                        scale=2
+                    )
+                    save_btn = gr.Button("저장", variant="primary", scale=1)
+                    info_status = gr.Markdown("", scale=1)
+                except Exception as e:
+                    logger.error(f"Error initializing personal info section: {str(e)}")
+                    # 오류 시 기본값 설정
+                    name_input = gr.Textbox(label="이름", placeholder="이름을 입력하세요", scale=1)
+                    email_input = gr.Textbox(label="이메일", placeholder="이메일을 입력하세요", scale=2)
+                    address_input = gr.Textbox(label="주소", placeholder="주소를 입력하세요", scale=2)
+                    save_btn = gr.Button("저장", variant="primary", scale=1)
+                    info_status = gr.Markdown("", scale=1)
+
             with gr.Row():
                 with gr.Column():
                     input_text = gr.Textbox(
@@ -293,12 +330,12 @@ class ConversationInsightUI:
                     enhanced_result = gr.Markdown(label="Enhanced Prompt 분석 결과")
                     run_enhanced_btn = gr.Button("Enhanced Prompt 실행")
 
-                    new_query_prompt = gr.Textbox(
-                        label="New Query Prompt",
+                    suggestion_query_prompt = gr.Textbox(
+                        label="Suggestion Query Prompt",
                         interactive=False
                     )
-                    new_query_result = gr.Markdown(label="New Query Prompt 분석 결과")
-                    run_new_query_btn = gr.Button("New Query Prompt 실행")
+                    suggestion_query_result = gr.Markdown(label="Suggestion Query Prompt 분석 결과")
+                    run_suggestion_query_btn = gr.Button("Suggestion Query Prompt 실행")
 
                 with gr.Column():
                     analysis_result = gr.HTML(label="분석 결과")
@@ -323,7 +360,7 @@ class ConversationInsightUI:
                     logger.error(f"Error in enhanced analysis: {str(e)}")
                     return f"분석 중 오류가 발생했습니다: {str(e)}"
 
-            async def run_new_query_analysis(prompt: str) -> str:
+            async def run_suggestion_query_analysis(prompt: str) -> str:
                 try:
                     if not prompt:
                         return "프롬프트가 비어있습니다."
@@ -338,8 +375,18 @@ class ConversationInsightUI:
                     )
                     return response.choices[0].message.content
                 except Exception as e:
-                    logger.error(f"Error in new query analysis: {str(e)}")
+                    logger.error(f"Error in Suggestion Query analysis: {str(e)}")
                     return f"분석 중 오류가 발생했습니다: {str(e)}"
+
+            async def handle_save_info(name: str, email: str, address: str) -> str:
+                result = await self.update_personal_info(name, email, address)
+                return f"**{result['message']}**"
+
+            save_btn.click(
+                fn=handle_save_info,
+                inputs=[name_input, email_input, address_input],
+                outputs=[info_status]
+            )
 
             analyze_btn.click(
                 fn=self.process_input,
@@ -349,7 +396,7 @@ class ConversationInsightUI:
                     user_profile,
                     conversation_history,
                     enhanced_prompt,
-                    new_query_prompt
+                    suggestion_query_prompt
                 ]
             )
 
@@ -359,13 +406,89 @@ class ConversationInsightUI:
                 outputs=[enhanced_result]
             )
 
-            run_new_query_btn.click(
-                fn=run_new_query_analysis,
-                inputs=[new_query_prompt],
-                outputs=[new_query_result]
+            run_suggestion_query_btn.click(
+                fn=run_suggestion_query_analysis,
+                inputs=[suggestion_query_prompt],
+                outputs=[suggestion_query_result]
             )
 
             return interface
+
+    def _validate_personal_info(self, info: Dict) -> Dict:
+        """개인정보 유효성 검증 및 기본값 설정"""
+        try:
+            if not isinstance(info, dict):
+                logger.warning("Invalid personal_info type, using defaults")
+                return {
+                    "name": "홍길동",
+                    "email": "user@example.com",
+                    "address": "서울시 강남구"
+                }
+
+            validated = {}
+            # 필수 필드 검증 및 기본값 설정
+            validated["name"] = str(info.get("name", "홍길동"))
+            validated["email"] = str(info.get("email", "user@example.com"))
+            validated["address"] = str(info.get("address", "서울시 강남구"))
+
+            return validated
+        except Exception as e:
+            logger.error(f"Error validating personal info: {str(e)}")
+            return {
+                "name": "홍길동",
+                "email": "user@example.com",
+                "address": "서울시 강남구"
+            }
+
+    async def update_personal_info(self, name: str, email: str, address: str) -> Dict:
+        """개인정보 업데이트"""
+        try:
+            # 입력값 타입 검증
+            if not all(isinstance(x, str) for x in [name, email, address]):
+                raise ValueError("Invalid input types")
+
+            # 입력값 유효성 검증
+            if not all([name.strip(), email.strip(), address.strip()]):
+                raise ValueError("Empty values are not allowed")
+
+            # 이메일 형식 검증
+            if not self._validate_email(email):
+                raise ValueError("Invalid email format")
+
+            update_data = {
+                "name": name.strip(),
+                "email": email.strip(),
+                "address": address.strip()
+            }
+
+            self.user_profile.update_default_personal_info(**update_data)
+            self.personal_info = self._validate_personal_info(
+                self.user_profile.get_profile()["user_profile"]["personal_info"]
+            )
+
+            return {
+                "status": "success",
+                "message": "개인정보가 업데이트되었습니다.",
+                "data": self.personal_info
+            }
+        except ValueError as ve:
+            logger.error(f"Validation error in update_personal_info: {str(ve)}")
+            return {
+                "status": "error",
+                "message": str(ve)
+            }
+        except Exception as e:
+            logger.error(f"Error in update_personal_info: {str(e)}")
+            return {
+                "status": "error",
+                "message": "개인정보 업데이트 중 오류가 발생했습니다."
+            }
+
+    def _validate_email(self, email: str) -> bool:
+        """이메일 형식 검증"""
+        import re
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return bool(re.match(pattern, email))
 
 def launch_app():
     try:

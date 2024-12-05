@@ -1,13 +1,16 @@
 from typing import Dict, List
 
 from utils.logger import get_logger
+from facets.user_profile import UserProfile
 
 logger = get_logger(__name__)
 
 class PromptGenerator:
     """프롬프트 생성 클래스"""
 
-    def __init__(self):
+    def __init__(self, user_profile: UserProfile):
+        self.user_profile = user_profile
+
         """프롬프트 템플릿 초기화"""
         self.templates = {
             "enhanced": """
@@ -55,7 +58,7 @@ Your response will be evaluated on:
 - Natural conversation flow
 - Practical value to the user
 """,
-            "new_query": """
+            "suggestion_query": """
 You are generating follow-up questions for a Korean conversation. Review the provided context:
 
 Current Query: {current_input}
@@ -124,8 +127,13 @@ Remember: Good questions lead to meaningful responses that help better understan
     def _build_context_information(self, current: Dict, similar: List[Dict]) -> str:
         """컨텍스트 정보 구조화"""
         try:
+            personal_context = self._get_personal_info_context()
+
             return f"""
 The user has just asked: {current.get("input", "")}
+
+User Profile Information:
+{personal_context}
 
 Examine the conversation history to understand context:
 {self._format_reference_conversations(similar)}
@@ -149,7 +157,7 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
             logger.error(f"Error building context information: {str(e)}")
             return ""
 
-    def create_new_query_prompt(self, current: Dict, similar: List[Dict]) -> str:
+    def create_suggestion_query_prompt(self, current: Dict, similar: List[Dict]) -> str:
         """새로운 질의 생성 프롬프트"""
         try:
             logger.debug(f"Creating new query prompt for input: {current.get('input', '')}")
@@ -157,7 +165,7 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
             location_context = self._extract_location_context(similar)
             temporal_context = self._extract_temporal_context(similar)
 
-            return self.templates["new_query"].format(
+            return self.templates["suggestion_query"].format(
                 current_input=current.get("input", ""),
                 reference_conversations=self._format_reference_conversations(similar),
                 context_data=self._format_context_data(similar),
@@ -348,3 +356,74 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
         except Exception as e:
             logger.error(f"Error extracting temporal patterns: {str(e)}")
             return '패턴 분석 실패'
+
+    def _get_personal_info_context(self) -> str:
+        """개인 정보 컨텍스트 생성"""
+        try:
+            profile = self.user_profile.get_profile()["user_profile"]
+            context_parts = []
+
+            # 기본 개인정보 처리
+            personal_info = profile.get("personal_info", {})
+            if personal_info:
+                basic_info = []
+                if personal_info.get("name"):
+                    basic_info.append(f"이름: {personal_info['name']}")
+                if personal_info.get("email"):
+                    basic_info.append(f"이메일: {personal_info['email']}")
+                if personal_info.get("address"):
+                    basic_info.append(f"주소: {personal_info['address']}")
+                if basic_info:
+                    context_parts.append("기본 정보:\n- " + "\n- ".join(basic_info))
+
+            # 가족 정보 처리
+            family_info = profile.get("family_info", {})
+            if family_info:
+                family_details = []
+                if family_info.get("household_size"):
+                    family_details.append(f"가구 구성원 수: {family_info['household_size']}")
+                if family_info.get("living_arrangement"):
+                    family_details.append(f"거주 형태: {family_info['living_arrangement']}")
+                if family_info.get("family_members"):
+                    members = [f"{m['relation']}({m['age']}세)" for m in family_info['family_members'] if 'relation' in m and 'age' in m]
+                    if members:
+                        family_details.append(f"가족 구성원: {', '.join(members)}")
+                if family_details:
+                    context_parts.append("가족 정보:\n- " + "\n- ".join(family_details))
+
+            # 직업 정보 처리
+            prof_info = profile.get("professional_info", {})
+            if prof_info:
+                work_info = []
+                if prof_info.get("occupation"):
+                    work_info.append(f"직업: {prof_info['occupation']}")
+                if prof_info.get("company_name"):
+                    work_info.append(f"회사: {prof_info['company_name']}")
+                if prof_info.get("position"):
+                    work_info.append(f"직위: {prof_info['position']}")
+                if prof_info.get("industry"):
+                    work_info.append(f"업종: {prof_info['industry']}")
+                if work_info:
+                    context_parts.append("직업 정보:\n- " + "\n- ".join(work_info))
+
+            # 거주 정보 처리
+            residence_info = profile.get("residence_info", {})
+            if residence_info:
+                home_info = []
+                if residence_info.get("housing_type"):
+                    home_info.append(f"주거형태: {residence_info['housing_type']}")
+                if residence_info.get("neighborhood"):
+                    home_info.append(f"동네: {residence_info['neighborhood']}")
+                if residence_info.get("residence_period"):
+                    home_info.append(f"거주기간: {residence_info['residence_period']}")
+                if home_info:
+                    context_parts.append("거주 정보:\n- " + "\n- ".join(home_info))
+
+            # 컨텍스트 조합
+            if context_parts:
+                return "\n\n".join(context_parts)
+            return ""  # 충분한 정보가 없는 경우 빈 문자열 반환
+
+        except Exception as e:
+            logger.error(f"Error building personal info context: {str(e)}")
+            return ""
