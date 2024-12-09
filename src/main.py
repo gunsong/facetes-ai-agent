@@ -2,8 +2,9 @@ import argparse
 import asyncio
 import json
 import os
+import uuid
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import gradio as gr
 from analyzers.conversation_analyzer import ConversationAnalyzer
@@ -13,18 +14,70 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class ConversationInsightUI:
-    def __init__(self, openai_api_key: str, openai_base_url: str):
-        """WebUI 초기화"""
+class UserSession:
+    def __init__(self, email: str, name: str):
+        self.session_id = str(uuid.uuid4())
+        self.email = email
+        self.name = name
+        self.conversation_history = []
+        self.last_activity = datetime.now()
+        self.analyzer = None
+        self.user_profile = None
+        self.similarity_analyzer = None
+        self.prompt_generator = None
+
+    def initialize_components(self, openai_api_key: str, openai_base_url: str):
+        """세션 컴포넌트 초기화"""
         self.analyzer = ConversationAnalyzer(
             openai_api_key=openai_api_key,
             openai_base_url=openai_base_url
         )
-        self.similarity_analyzer = SimilarityAnalyzer(self.analyzer.client)
-
         self.user_profile = self.analyzer.user_profile
-        self.personal_info = self.user_profile.get_profile()["user_profile"]["personal_info"]
+        self.similarity_analyzer = SimilarityAnalyzer(self.analyzer.client)
         self.prompt_generator = PromptGenerator(self.user_profile)
+
+class SessionManager:
+    def __init__(self):
+        self.sessions: Dict[str, UserSession] = {}
+        self.cleanup_interval = 3600  # 1시간마다 정리
+        self.last_cleanup = datetime.now()
+
+    def create_session(self, email: str, name: str) -> UserSession:
+        """새로운 세션 생성"""
+        session = UserSession(email=email, name=name)
+        self.sessions[session.session_id] = session
+        return session
+
+    def get_session(self, session_id: str) -> Optional[UserSession]:
+        """세션 ID로 세션 조회"""
+        return self.sessions.get(session_id)
+
+    def cleanup_inactive_sessions(self):
+        """비활성 세션 정리"""
+        current_time = datetime.now()
+        if (current_time - self.last_cleanup).total_seconds() < self.cleanup_interval:
+            return
+
+        inactive_sessions = []
+        for session_id, session in self.sessions.items():
+            if (current_time - session.last_activity).total_seconds() > self.cleanup_interval:
+                inactive_sessions.append(session_id)
+                session.analyzer = None
+                session.user_profile = None
+                session.similarity_analyzer = None
+                session.prompt_generator = None
+
+        for session_id in inactive_sessions:
+            del self.sessions[session_id]
+
+        self.last_cleanup = current_time
+
+class ConversationInsightUI:
+    def __init__(self, openai_api_key: str, openai_base_url: str):
+        """WebUI 초기화"""
+        self.session_manager = SessionManager()
+        self.openai_api_key = openai_api_key
+        self.openai_base_url = openai_base_url
 
     def format_analysis_result(self, result: Dict) -> str:
         """분석 결과 포맷팅"""
@@ -220,101 +273,34 @@ class ConversationInsightUI:
         html += "</div></div>"
         return html
 
-    async def process_input(self, user_input: str) -> tuple:
-        """사용자 입력 처리"""
-        try:
-            current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            # 기본 분석 수행
-            analysis_result = await self.analyzer.analyze_conversation(
-                user_input=user_input,
-                current_date=current_date
-            )
-            logger.debug(f"analysis_result: {analysis_result}")
-
-            # 사용자 프로필 조회
-            user_profile = self.analyzer.get_user_profile()
-            logger.debug(f"user_profile: {user_profile}")
-
-            # 대화 히스토리 조회
-            conversation_history = self.analyzer.get_conversation_history()
-            logger.debug(f"conversation_history: {conversation_history}")
-
-            # 유사 대화 검색 (대화 히스토리가 2개 이상인 경우)
-            similar_conversations = []
-            if len(conversation_history) >= 2:
-                similar_conversations = await self.similarity_analyzer.find_similar_conversations(
-                    analysis_result,
-                    conversation_history[:-1]  # 현재 대화를 제외한 이전 대화들만 비교
-                )
-                logger.info(f"similar_conversations: {similar_conversations}")
-
-            # 프롬프트 생성 (유사 대화가 있는 경우)
-            enhanced_prompt = ""
-            suggestion_query_prompt = ""
-            if similar_conversations:
-                enhanced_prompt = self.prompt_generator.create_enhanced_prompt(
-                    analysis_result,
-                    similar_conversations
-                )
-                suggestion_query_prompt = self.prompt_generator.create_suggestion_query_prompt(
-                    analysis_result,
-                    similar_conversations
-                )
-                logger.info(f"enhanced_prompt: {enhanced_prompt}")
-                logger.info(f"suggestion_query_prompt: {suggestion_query_prompt}")
-
-            # 결과 포맷팅 및 반환
-            return (
-                self.format_analysis_result(analysis_result),
-                self.format_user_profile(user_profile),
-                self.format_conversation_history(conversation_history),
-                enhanced_prompt,
-                suggestion_query_prompt
-            )
-
-        except Exception as e:
-            logger.error(f"Error processing input: {str(e)}")
-            return ("Error occurred", "Error occurred", "Error occurred", "", "")
-
     def create_ui(self) -> gr.Interface:
         """Gradio UI 생성"""
-        with gr.Blocks() as interface:
-            with gr.Row():
-                try:
-                    # 기본값 설정 및 타입 검증
-                    personal_info = self._validate_personal_info(self.personal_info)
+        with gr.Blocks(css=custom_css) as interface:  # css 파라미터를 여기로 이동
+            session_id = gr.State(None)
 
-                    name_input = gr.Textbox(
-                        label="이름",
-                        value=personal_info.get("name", ""),
-                        placeholder="이름을 입력하세요",
-                        scale=1
-                    )
-                    email_input = gr.Textbox(
-                        label="이메일",
-                        value=personal_info.get("email", ""),
-                        placeholder="이메일을 입력하세요",
-                        scale=2
-                    )
-                    address_input = gr.Textbox(
-                        label="주소",
-                        value=personal_info.get("address", ""),
-                        placeholder="주소를 입력하세요",
-                        scale=2
-                    )
-                    save_btn = gr.Button("저장", variant="primary", scale=1)
-                    info_status = gr.Markdown("", scale=1)
-                except Exception as e:
-                    logger.error(f"Error initializing personal info section: {str(e)}")
-                    # 오류 시 기본값 설정
-                    name_input = gr.Textbox(label="이름", placeholder="이름을 입력하세요", scale=1)
-                    email_input = gr.Textbox(label="이메일", placeholder="이메일을 입력하세요", scale=2)
-                    address_input = gr.Textbox(label="주소", placeholder="주소를 입력하세요", scale=2)
-                    save_btn = gr.Button("저장", variant="primary", scale=1)
-                    info_status = gr.Markdown("", scale=1)
+            # 로그인 팝업
+            with gr.Row(visible=True) as login_row:
+                with gr.Column():
+                    with gr.Box(elem_classes="login-popup"):
+                        gr.Markdown("## 로그인")
+                        email_input = gr.Textbox(
+                            label="이메일 (ID)",
+                            placeholder="이메일을 입력하세요"
+                        )
+                        name_input = gr.Textbox(
+                            label="이름",
+                            placeholder="이름을 입력하세요"
+                        )
+                        password_input = gr.Textbox(
+                            label="패스워드",
+                            placeholder="패스워드를 입력하세요",
+                            type="password"
+                        )
+                        login_btn = gr.Button("로그인", variant="primary")
+                        login_status = gr.Markdown("")
 
-            with gr.Row():
+            # 메인 인터페이스
+            with gr.Row(visible=False) as main_interface:
                 with gr.Column():
                     input_text = gr.Textbox(
                         label="사용자 입력",
@@ -342,12 +328,17 @@ class ConversationInsightUI:
                     user_profile = gr.HTML(label="사용자 프로필")
                     conversation_history = gr.HTML(label="대화 히스토리")
 
-            async def run_enhanced_analysis(prompt: str) -> str:
+            async def run_enhanced_analysis(prompt: str, session_id: str) -> str:
+                """Enhanced Prompt 분석 실행"""
                 try:
                     if not prompt:
                         return "프롬프트가 비어있습니다."
 
-                    response = await self.analyzer.client.chat.completions.create(
+                    session = self.session_manager.get_session(session_id)
+                    if not session:
+                        return "세션이 만료되었습니다. 다시 로그인해주세요."
+
+                    response = await session.analyzer.client.chat.completions.create(
                         model="openai/gpt-4o-mini-2024-07-18",
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
@@ -355,17 +346,24 @@ class ConversationInsightUI:
                         ],
                         temperature=0.7
                     )
-                    return response.choices[0].message.content
+                    output = response.choices[0].message.content
+                    logger.info(f"Enhanced Output from LLM: {output}")
+                    return output
                 except Exception as e:
                     logger.error(f"Error in enhanced analysis: {str(e)}")
                     return f"분석 중 오류가 발생했습니다: {str(e)}"
 
-            async def run_suggestion_query_analysis(prompt: str) -> str:
+            async def run_suggestion_query_analysis(prompt: str, session_id: str) -> str:
+                """Suggestion Query Prompt 분석 실행"""
                 try:
                     if not prompt:
                         return "프롬프트가 비어있습니다."
 
-                    response = await self.analyzer.client.chat.completions.create(
+                    session = self.session_manager.get_session(session_id)
+                    if not session:
+                        return "세션이 만료되었습니다. 다시 로그인해주세요."
+
+                    response = await session.analyzer.client.chat.completions.create(
                         model="openai/gpt-4o-mini-2024-07-18",
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
@@ -373,24 +371,139 @@ class ConversationInsightUI:
                         ],
                         temperature=0.7
                     )
-                    return response.choices[0].message.content
+                    output = response.choices[0].message.content
+                    logger.info(f"Suggestion Output from LLM: {output}")
+                    return output
                 except Exception as e:
                     logger.error(f"Error in Suggestion Query analysis: {str(e)}")
                     return f"분석 중 오류가 발생했습니다: {str(e)}"
 
-            async def handle_save_info(name: str, email: str, address: str) -> str:
-                result = await self.update_personal_info(name, email, address)
-                return f"**{result['message']}**"
+            async def handle_login(email: str, name: str, password: str) -> tuple:
+                """로그인 처리 및 개인정보 저장"""
+                if not email or not name:
+                    return None, "이메일과 이름을 모두 입력해주세요.", gr.Row(visible=True), gr.Row(visible=False)
 
-            save_btn.click(
-                fn=handle_save_info,
-                inputs=[name_input, email_input, address_input],
-                outputs=[info_status]
+                # 패스워드 검증
+                if password != "1209":
+                    return None, "패스워드가 올바르지 않습니다.", gr.Row(visible=True), gr.Row(visible=False)
+
+                # 기존 세션 강제 종료
+                for session_id, session in list(self.session_manager.sessions.items()):
+                    if session.email == email:
+                        session.analyzer = None
+                        session.user_profile = None
+                        session.similarity_analyzer = None
+                        session.prompt_generator = None
+                        del self.session_manager.sessions[session_id]
+                        break
+
+                # 새 세션 생성 및 초기화
+                session = self.session_manager.create_session(email, name)
+                session.initialize_components(
+                    openai_api_key=self.openai_api_key,
+                    openai_base_url=self.openai_base_url
+                )
+
+                # 사용자 정보 저장
+                session.user_profile.update_default_personal_info(
+                    name=name,
+                    email=email
+                )
+
+                return (
+                    session.session_id,
+                    f"환영합니다, {name}님!",
+                    gr.Row(visible=False),
+                    gr.Row(visible=True)
+                )
+
+            async def process_message(message: str, session_id: str) -> tuple:
+                """세션별 메시지 처리"""
+                if not session_id:
+                    return "로그인이 필요합니다.", "", "", "", ""
+
+                session = self.session_manager.get_session(session_id)
+                if not session:
+                    return "세션이 만료되었습니다. 다시 로그인해주세요.", "", "", "", ""
+
+                session.last_activity = datetime.now()
+
+                try:
+                    current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                    # 기본 분석 수행
+                    result = await session.analyzer.analyze_conversation(
+                        user_input=message,
+                        current_date=current_date
+                    )
+                    logger.debug(f"analysis_result: {result}")
+
+                    # 사용자 프로필 조회
+                    user_profile = session.user_profile.get_profile()
+                    logger.debug(f"user_profile: {user_profile}")
+
+                    # 내부 대화 내용 저장
+                    conversation_record = {
+                        "timestamp": current_date,
+                        "input": message,
+                        "analysis": result
+                    }
+                    session.conversation_history.append(conversation_record)
+                    logger.info(f"대화 내용 저장 완료. 현재 히스토리 크기: {len(session.conversation_history)}")
+
+                    # 대화 히스토리 조회
+                    conversation_history = session.analyzer.get_conversation_history()
+                    logger.debug(f"conversation_history({len(conversation_history)}): {conversation_history}")
+
+                    # 유사 대화 검색 (대화 히스토리가 2개 이상인 경우)
+                    enhanced_prompt = ""
+                    suggestion_query_prompt = ""
+                    if len(conversation_history) >= 2:
+                        similar_conversations = await session.similarity_analyzer.find_similar_conversations(
+                            result,
+                            conversation_history[:-1]  # 현재 대화를 제외한 이전 대화들만 비교
+                        )
+                        logger.info(f"similar_conversations: {similar_conversations}")
+
+                        # 프롬프트 생성 (유사 대화가 있는 경우)
+                        if similar_conversations:
+                            enhanced_prompt = session.prompt_generator.create_enhanced_prompt(
+                                result,
+                                similar_conversations
+                            )
+                            suggestion_query_prompt = session.prompt_generator.create_suggestion_query_prompt(
+                                result,
+                                similar_conversations
+                            )
+                            logger.info(f"enhanced_prompt: {enhanced_prompt}")
+                            logger.info(f"suggestion_query_prompt: {suggestion_query_prompt}")
+
+                    return (
+                        self.format_analysis_result(result),
+                        self.format_user_profile(user_profile),
+                        self.format_conversation_history(conversation_history),
+                        enhanced_prompt,
+                        suggestion_query_prompt
+                    )
+                except Exception as e:
+                    logger.error(f"Error processing message: {str(e)}")
+                    return "처리 중 오류가 발생했습니다.", "", "", "", ""
+
+            # 이벤트 핸들러 연결
+            login_btn.click(
+                fn=handle_login,
+                inputs=[email_input, name_input, password_input],
+                outputs=[
+                    session_id,
+                    login_status,
+                    login_row,
+                    main_interface
+                ]
             )
 
             analyze_btn.click(
-                fn=self.process_input,
-                inputs=[input_text],
+                fn=process_message,
+                inputs=[input_text, session_id],
                 outputs=[
                     analysis_result,
                     user_profile,
@@ -402,87 +515,17 @@ class ConversationInsightUI:
 
             run_enhanced_btn.click(
                 fn=run_enhanced_analysis,
-                inputs=[enhanced_prompt],
+                inputs=[enhanced_prompt, session_id],
                 outputs=[enhanced_result]
             )
 
             run_suggestion_query_btn.click(
                 fn=run_suggestion_query_analysis,
-                inputs=[suggestion_query_prompt],
+                inputs=[suggestion_query_prompt, session_id],
                 outputs=[suggestion_query_result]
             )
 
             return interface
-
-    def _validate_personal_info(self, info: Dict) -> Dict:
-        """개인정보 유효성 검증 및 기본값 설정"""
-        try:
-            if not isinstance(info, dict):
-                logger.warning("Invalid personal_info type, using defaults")
-                return {
-                    "name": "홍길동",
-                    "email": "user@example.com",
-                    "address": "서울시 강남구"
-                }
-
-            validated = {}
-            # 필수 필드 검증 및 기본값 설정
-            validated["name"] = str(info.get("name", "홍길동"))
-            validated["email"] = str(info.get("email", "user@example.com"))
-            validated["address"] = str(info.get("address", "서울시 강남구"))
-
-            return validated
-        except Exception as e:
-            logger.error(f"Error validating personal info: {str(e)}")
-            return {
-                "name": "홍길동",
-                "email": "user@example.com",
-                "address": "서울시 강남구"
-            }
-
-    async def update_personal_info(self, name: str, email: str, address: str) -> Dict:
-        """개인정보 업데이트"""
-        try:
-            # 입력값 타입 검증
-            if not all(isinstance(x, str) for x in [name, email, address]):
-                raise ValueError("Invalid input types")
-
-            # 입력값 유효성 검증
-            if not all([name.strip(), email.strip(), address.strip()]):
-                raise ValueError("Empty values are not allowed")
-
-            # 이메일 형식 검증
-            if not self._validate_email(email):
-                raise ValueError("Invalid email format")
-
-            update_data = {
-                "name": name.strip(),
-                "email": email.strip(),
-                "address": address.strip()
-            }
-
-            self.user_profile.update_default_personal_info(**update_data)
-            self.personal_info = self._validate_personal_info(
-                self.user_profile.get_profile()["user_profile"]["personal_info"]
-            )
-
-            return {
-                "status": "success",
-                "message": "개인정보가 업데이트되었습니다.",
-                "data": self.personal_info
-            }
-        except ValueError as ve:
-            logger.error(f"Validation error in update_personal_info: {str(ve)}")
-            return {
-                "status": "error",
-                "message": str(ve)
-            }
-        except Exception as e:
-            logger.error(f"Error in update_personal_info: {str(e)}")
-            return {
-                "status": "error",
-                "message": "개인정보 업데이트 중 오류가 발생했습니다."
-            }
 
     def _validate_email(self, email: str) -> bool:
         """이메일 형식 검증"""
@@ -490,21 +533,61 @@ class ConversationInsightUI:
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return bool(re.match(pattern, email))
 
+# CSS 스타일 추가
+custom_css = """
+.login-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+.login-popup input {
+    width: 100%;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.login-popup button {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.login-popup button:hover {
+    background-color: #1976D2;
+}
+"""
+
 def launch_app():
     try:
         openai_api_key = os.getenv("OPENAI_API_KEY", "")
         openai_base_url = os.getenv("OPENAI_BASE_URL", "")
 
-        # UI 인스턴스 생성
         app = ConversationInsightUI(
             openai_api_key=openai_api_key,
             openai_base_url=openai_base_url
         )
 
-        # Gradio 인터페이스 실행
         ui = app.create_ui()
-        ui.launch(server_name="0.0.0.0", server_port=8760)
-
+        ui.launch(
+            server_name="0.0.0.0",
+            server_port=8760
+            # css 파라미터 제거
+        )
     except Exception as e:
         logger.error(f"Error launching app: {str(e)}")
         raise
