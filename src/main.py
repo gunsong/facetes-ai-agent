@@ -275,7 +275,7 @@ class ConversationInsightUI:
 
     def create_ui(self) -> gr.Interface:
         """Gradio UI 생성"""
-        with gr.Blocks(css=custom_css) as interface:  # css 파라미터를 여기로 이동
+        with gr.Blocks(css=custom_css) as interface:
             session_id = gr.State(None)
 
             # 로그인 팝업
@@ -572,7 +572,7 @@ custom_css = """
 }
 """
 
-def launch_app():
+def launch_app(host: str = "0.0.0.0", port: int = 8760):
     try:
         openai_api_key = os.getenv("OPENAI_API_KEY", "")
         openai_base_url = os.getenv("OPENAI_BASE_URL", "")
@@ -584,79 +584,24 @@ def launch_app():
 
         ui = app.create_ui()
         ui.launch(
-            server_name="0.0.0.0",
-            server_port=8760
-            # css 파라미터 제거
+            server_name=host,
+            server_port=port
         )
     except Exception as e:
         logger.error(f"Error launching app: {str(e)}")
         raise
 
-async def main():
-    parser = argparse.ArgumentParser(description='Conversation Analyzer')
-    parser.add_argument('prompts', type=str, nargs='+', help='One or more prompts for conversation analysis')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Conversation Insight UI Server")
+    parser.add_argument("-H", "--host",
+                       default="0.0.0.0",
+                       help="Host address to bind (default: 0.0.0.0)")
+    parser.add_argument("-p", "--port",
+                       type=int,
+                       default=8760,
+                       help="Port number to bind (default: 8760)")
 
-    # 날짜 인자 추가 (선택적)
-    parser.add_argument('--date', type=str,
-                       default=datetime.now().strftime("%Y-%m-%d"),
-                       help='Analysis date (YYYY-MM-DD format)')
     args = parser.parse_args()
 
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    base_url = os.getenv("OPENAI_BASE_URL", "")
-
-    analyzer = ConversationAnalyzer(
-        openai_api_key=api_key,
-        openai_base_url=base_url
-    )
-
-    try:
-        # 첫 번째 프롬프트 분석
-        logger.info("=== 대화 분석 시작 (1/%d) ===", len(args.prompts))
-        result = await analyzer.analyze_conversation(
-            user_input=args.prompts[0],
-            current_date=args.date
-        )
-
-        # 로그 출력 개선
-        logger.debug("첫 번째 대화 분석 결과:\n%s", 
-            json.dumps(result, indent=2, ensure_ascii=False))
-
-        # 두 번째 이후의 프롬프트가 있다면 연속 분석 수행
-        for i, prompt in enumerate(args.prompts[1:], start=2):
-            logger.info("=== 대화 분석 진행 (%d/%d) ===", i, len(args.prompts))
-            result = await analyzer.analyze_conversation(
-                user_input=prompt,
-                current_date=args.date,
-                context=result["analysis_result"]
-            )
-
-            # 로그 출력 개선
-            logger.debug("대화 분석 결과 #%d:\n%s", i,
-                json.dumps(result, indent=2, ensure_ascii=False))
-
-        # 최종 결과 출력 개선
-        logger.info("\n=== 분석 결과 요약 ===")
-        logger.info("총 처리된 대화: %d개", len(args.prompts))
-
-        # 사용자 프로필 출력 개선
-        user_profile = analyzer.get_user_profile()
-        logger.info("사용자 프로필:\n%s",
-            json.dumps(user_profile, ensure_ascii=False))
-
-        # 대화 히스토리 출력 개선
-        conversation_history = analyzer.get_conversation_history()
-        logger.info("대화 히스토리:\n%s",
-            json.dumps(conversation_history, indent=2, ensure_ascii=False))
-
-        return result
-
-    except Exception as e:
-        logger.error("Error in main: %s", str(e))
-        raise
-
-if __name__ == "__main__":
-    # import asyncio
-    # asyncio.run(main())
-
-    launch_app()
+    logger.info(f"Starting server on {args.host}:{args.port}")
+    launch_app(host=args.host, port=args.port)
