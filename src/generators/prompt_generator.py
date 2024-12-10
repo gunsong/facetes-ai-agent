@@ -1,7 +1,7 @@
 from typing import Dict, List
 
-from utils.logger import get_logger
 from facets.user_profile import UserProfile
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -373,6 +373,11 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
                     basic_info.append(f"이메일: {personal_info['email']}")
                 if personal_info.get("address"):
                     basic_info.append(f"주소: {personal_info['address']}")
+                if personal_info.get("age"):
+                    basic_info.append(f"나이: {personal_info['age']}")
+                if personal_info.get("language"):
+                    basic_info.append(f"선호 언어: {personal_info['language']}")
+
                 if basic_info:
                     context_parts.append("기본 정보:\n- " + "\n- ".join(basic_info))
 
@@ -388,6 +393,7 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
                     members = [f"{m['relation']}({m['age']}세)" for m in family_info['family_members'] if 'relation' in m and 'age' in m]
                     if members:
                         family_details.append(f"가족 구성원: {', '.join(members)}")
+
                 if family_details:
                     context_parts.append("가족 정보:\n- " + "\n- ".join(family_details))
 
@@ -403,6 +409,7 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
                     work_info.append(f"직위: {prof_info['position']}")
                 if prof_info.get("industry"):
                     work_info.append(f"업종: {prof_info['industry']}")
+
                 if work_info:
                     context_parts.append("직업 정보:\n- " + "\n- ".join(work_info))
 
@@ -416,6 +423,7 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
                     home_info.append(f"동네: {residence_info['neighborhood']}")
                 if residence_info.get("residence_period"):
                     home_info.append(f"거주기간: {residence_info['residence_period']}")
+
                 if home_info:
                     context_parts.append("거주 정보:\n- " + "\n- ".join(home_info))
 
@@ -423,7 +431,6 @@ Looking at their history, {self._extract_temporal_patterns(similar)}
             if context_parts:
                 return "\n\n".join(context_parts)
             return ""  # 충분한 정보가 없는 경우 빈 문자열 반환
-
         except Exception as e:
             logger.error(f"Error building personal info context: {str(e)}")
             return ""

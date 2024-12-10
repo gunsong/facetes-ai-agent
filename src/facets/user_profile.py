@@ -21,12 +21,12 @@ class UserProfile:
         logger.info("UserProfile 초기화 시작")
 
         # 각 컴포넌트 클래스 인스턴스화
-        self.interests = UserInterests()  # 관심사 객체 초기화
-        self.activities = Activities()    # 활동 정보
-        self.behavior = BehaviorPatterns() # 행동 패턴
-        self.context = ContextMemory()    # 컨텍스트 메모리
+        self.interests = UserInterests()    # 관심사 객체 초기화
+        self.activities = Activities()      # 활동 정보
+        self.behavior = BehaviorPatterns()  # 행동 패턴
+        self.context = ContextMemory()      # 컨텍스트 메모리
         self.metrics = InteractionMetrics() # 상호작용 지표
-        self.knowledge = KnowledgeBase()  # 지식 베이스
+        self.knowledge = KnowledgeBase()    # 지식 베이스
 
         # 프로필 메타데이터
         self.last_update = None
@@ -280,17 +280,23 @@ class UserProfile:
         except Exception as e:
             logger.error(f"프로필 업데이트 중 오류: {str(e)}")
 
-    def update_default_personal_info(self, name: str = None, email: str = None, address: str = None) -> None:
+    def update_default_personal_info(self, **personal_info) -> None:
         """개인 기본 정보 업데이트"""
         try:
-            if name:
-                self.profile["user_profile"]["personal_info"]["name"] = name
-            if email:
-                self.profile["user_profile"]["personal_info"]["email"] = email
-            if address:
-                self.profile["user_profile"]["personal_info"]["address"] = address
+            # 허용된 필드 목록
+            allowed_fields = {
+                "name", "email", "address", "birth_date", "nationality",
+                "language", "age", "gender", "marital_status", "phone",
+                "profile_image"
+            }
 
-            logger.info(f"개인 기본 정보 업데이트 완료. {name}, {email}, {address}")
+            # 유효한 필드만 업데이트
+            for field, value in personal_info.items():
+                if field in allowed_fields and value is not None:
+                    self.profile["user_profile"]["personal_info"][field] = value
+
+            updated_fields = [f"{k}={v}" for k, v in personal_info.items() if k in allowed_fields and v is not None]
+            logger.info(f"개인 기본 정보 업데이트 완료. {', '.join(updated_fields)}")
         except Exception as e:
             logger.error(f"개인 기본 정보 업데이트 중 오류: {str(e)}")
 

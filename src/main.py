@@ -302,6 +302,30 @@ class ConversationInsightUI:
             # 메인 인터페이스
             with gr.Row(visible=False) as main_interface:
                 with gr.Column():
+                    # 개인정보 입력 섹션 추가
+                    with gr.Row():
+                        age_input = gr.Dropdown(
+                            label="나이대",
+                            choices=["10대", "20대", "30대", "40대", "50대 이상"],
+                            value="20대",
+                            scale=1
+                        )
+                        address_input = gr.Textbox(
+                            label="주소",
+                            placeholder="주소를 입력하세요",
+                            value="서울시 송파구",
+                            scale=1
+                        )
+                        language_input = gr.Dropdown(
+                            label="선호 언어",
+                            choices=["한국어", "영어", "일본어", "중국어"],
+                            value="한국어",
+                            scale=1
+                        )
+                        update_profile_btn = gr.Button("프로필 업데이트", variant="secondary", scale=1)
+                        profile_status = gr.Markdown("")
+
+                    # 대화 인터페이스
                     input_text = gr.Textbox(
                         label="사용자 입력",
                         placeholder="대화 내용을 입력하세요...",
@@ -377,6 +401,27 @@ class ConversationInsightUI:
                 except Exception as e:
                     logger.error(f"Error in Suggestion Query analysis: {str(e)}")
                     return f"분석 중 오류가 발생했습니다: {str(e)}"
+
+            async def update_profile(age: str, address: str, language: str, session_id: str) -> str:
+                """프로필 업데이트"""
+                if not session_id:
+                    return "로그인이 필요합니다."
+
+                session = self.session_manager.get_session(session_id)
+                if not session:
+                    return "세션이 만료되었습니다. 다시 로그인해주세요."
+
+                try:
+                    # 키워드 인자로 전달
+                    session.user_profile.update_default_personal_info(
+                        age=age,
+                        address=address,
+                        language=language
+                    )
+                    return "프로필이 업데이트되었습니다."
+                except Exception as e:
+                    logger.error(f"Error updating profile: {str(e)}")
+                    return "프로필 업데이트 중 오류가 발생했습니다."
 
             async def handle_login(email: str, name: str, password: str) -> tuple:
                 """로그인 처리 및 개인정보 저장"""
@@ -499,6 +544,17 @@ class ConversationInsightUI:
                     login_row,
                     main_interface
                 ]
+            )
+
+            update_profile_btn.click(
+                fn=update_profile,
+                inputs=[
+                    age_input,
+                    address_input,
+                    language_input,
+                    session_id
+                ],
+                outputs=[profile_status]
             )
 
             analyze_btn.click(
